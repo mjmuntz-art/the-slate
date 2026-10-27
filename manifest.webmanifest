@@ -1,0 +1,17 @@
+{
+  "name": "The Slate",
+  "short_name": "The Slate",
+  "id": "./",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f6f4ef",
+  "theme_color": "#142631",
+  "icons": [
+    {
+      "src": "icon.png",
+      "sizes": "128x128",
+      "type": "image/png"
+    }
+  ]
+}
