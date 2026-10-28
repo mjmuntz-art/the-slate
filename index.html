@@ -1281,18 +1281,39 @@ table.rtb.pc-gl { margin-top: 6px; }
 /* ===== 10-27a: CLV scoreboard ===== */
 table.rtb tr.cvall td { font-weight: 700; }
 @media (max-width: 600px) { table.rtb small.cvn { display: none; } }
+/* ===== 10-27b: iPhone Duo cover screen ===== */
+@media (max-width: 760px) { .lkey > div { grid-template-columns: max-content minmax(0, 1fr); } }
+@media (max-width: 560px) { .lkey > div { display: block; } .lkey > div > b { min-height: 0; margin: 0 0 6px; flex-wrap: wrap; } }
+.wrap { padding-left: max(20px, env(safe-area-inset-left)); padding-right: max(20px, env(safe-area-inset-right)); }
+@media (max-width: 600px) { .wrap { padding-left: max(16px, env(safe-area-inset-left)); padding-right: max(16px, env(safe-area-inset-right)); } }
+.mast .wrap { padding-top: calc(20px + env(safe-area-inset-top)); }
+@media (max-width: 420px) { .mast .wrap { padding-top: calc(14px + env(safe-area-inset-top)); padding-bottom: 12px; } .mast h1 { font-size: 40px; } .mrec { margin-top: 6px; } .mrec b { font-size: 20px; } .mast .date { font-size: 13.5px; margin-top: 6px; } }
 </style>
 
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="The Slate">
-<meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="theme-color" content="#142631">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#12161C">
 <link rel="apple-touch-icon" href="icon.png">
 <link rel="icon" type="image/png" href="icon.png">
 <link rel="manifest" href="manifest.webmanifest">
-<style>body {padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-right);padding-bottom:env(safe-area-inset-bottom)} .mast {padding-top:calc(24px + env(safe-area-inset-top))}</style>
+<style>
+/* Home-screen app: the page runs under the clock. Dark rails sit behind the clock area
+   (top or side, wherever iOS puts it) so it reads like the header and tab bar. */
+.safe { position: fixed; z-index: 20; background: var(--ink); pointer-events: none; }
+.safe.t { top: 0; left: 0; right: 0; height: env(safe-area-inset-top); }
+.safe.r { top: 0; bottom: 0; right: 0; width: env(safe-area-inset-right); }
+.safe.l { top: 0; bottom: 0; left: 0; width: env(safe-area-inset-left); }
+.tabbar { top: env(safe-area-inset-top); }
+@media (max-width: 760px) {
+  body { padding-bottom: calc(70px + max(4px, env(safe-area-inset-bottom) - 16px)); }
+  .tabbar { top: auto; }
+  .tabbar .wrap { padding-bottom: max(4px, calc(env(safe-area-inset-bottom) - 16px)); padding-left: max(6px, env(safe-area-inset-left)); padding-right: max(6px, env(safe-area-inset-right)); }
+}
+</style>
 </head>
 <body data-view="today">
+<div class="safe t"></div><div class="safe r"></div><div class="safe l"></div>
 <header class="mast">
   <svg class="court" viewBox="0 0 600 600" fill="none" aria-hidden="true"><circle cx="300" cy="300" r="90"/><circle cx="300" cy="300" r="250"/><line x1="300" y1="0" x2="300" y2="600"/><rect x="200" y="420" width="200" height="180"/><circle cx="300" cy="420" r="60"/></svg>
   <div class="wrap">
@@ -1303,8 +1324,8 @@ table.rtb tr.cvall td { font-weight: 700; }
 <nav class="tabbar" aria-label="Sections"><div class="wrap"><button type="button" data-go="" data-view="today" class="on"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg><span>Today</span></button><button type="button" data-go="props" data-view="props"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7.5A1.5 1.5 0 0 1 5.5 6h13A1.5 1.5 0 0 1 20 7.5V10a2 2 0 0 0 0 4v2.5a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 16.5V14a2 2 0 0 0 0-4z"/><path d="M14.5 7v10" stroke-dasharray="1.6 2.2"/></svg><span>Props</span></button><button type="button" data-go="players" data-view="players"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.6"/><path d="M5 20c.8-3.6 3.6-5.6 7-5.6s6.2 2 7 5.6"/></svg><span>Players</span></button><button type="button" data-go="teams" data-view="teams"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.2l7 2.8v5.2c0 4.4-2.9 7.8-7 9.6-4.1-1.8-7-5.2-7-9.6V6z"/><path d="M12 7.5v9M8.5 11.5h7"/></svg><span>Teams</span></button><button type="button" data-go="record" data-view="record"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 19.5v-7M10 19.5V6M15 19.5v-9M20 19.5V9M3 19.5h18"/></svg><span>Record</span></button></div></nav>
 <div class="ticker" id="ticker" hidden></div>
 <div id="app-status" class="wrap" role="status" style="padding:16px;color:#8c321d" hidden></div>
-<main class="wrap" id="main"><p class="loading">Opening the board… (page build 10-27a)</p></main>
-<footer class="wrap"><p class="build" id="build">Page build 10-27a</p></footer>
+<main class="wrap" id="main"><p class="loading">Opening the board… (page build 10-27b)</p></main>
+<footer class="wrap"><p class="build" id="build">Page build 10-27b</p></footer>
 <dialog class="card" id="card" aria-label="Player"></dialog>
 
 <script src="config.js"></script>
