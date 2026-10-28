@@ -1,4 +1,3 @@
-
 window.__MAIN__ = 1;
 const $ = s => document.querySelector(s);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -380,9 +379,12 @@ function trackingNote() {
 }
 /* ---------- Record screen: season / last 7 days / last night, built from EDGE LOG + FORWARD VALIDATION ---------- */
 let recPer = 'season', recFlagOnly = false, recGame = '';
+// 10-27b: props by game, top-edge ranks, what's hitting
+let recPricing = 'rp';   // 'rp' = every prop on today's pricing (EDGE LOG AM:AN), 'log' = edges as logged
+let pgDate = '', pgGame = '', pgKind = 'p', pgMk = 'ALL', pgSort = 'edge', pgAll = false, whKind = 'p', whDim = 'ms';
 const REC_MK = [['ML', 'Moneyline'], ['SPREAD', 'Spread'], ['GAME TOTAL', 'Game total'], ['TEAM TOTAL', 'Team total'], ['1H SPREAD', '1H spread'], ['1H TOTAL', '1H total']];
 const REC_PM = [['PTS', 'Points'], ['REB', 'Rebounds'], ['AST', 'Assists'], ['3PM', 'Threes'], ['PRA', 'PRA']];
-const REC_EB = [['u3', 'under 3%'], ['b3', '3–5%'], ['b5', '5–8%'], ['b8', '8–12%'], ['b12', '12%+'], ['chk', 'check-marked']];
+const REC_EB = [['u3', 'under 3%'], ['b3', '3–5%'], ['b5', '5–8%'], ['b8', '8–12%'], ['b12', '12%+'], ['n0', 'negative'], ['r0', '0–1%'], ['r1', '1–2%'], ['r2', '2–3%'], ['r3', '3%+'], ['chk', 'check-marked']];
 const REC_CB = ['c0', 'c50', 'c55', 'c60', 'c65', 'c70', 'c80'];
 const SMALL = 10;   // fewer than this: drawn faded, read with care
 function recBar(label, frac, mark, right, tone, n) {
@@ -456,6 +458,127 @@ function recLastList(last, games) {
       </tbody></table></div>` : `<p class="muted">No flagged picks in this game.</p>`;
   return picker + table;
 }
+/* ---------- 10-27b: top edges each night, props by game, what's hitting ---------- */
+const PG_MK_L = [['ALL', 'All'], ['ML', 'ML'], ['SPREAD', 'Spread'], ['GAME TOTAL', 'Total'], ['TEAM TOTAL', 'Team total'], ['1H', '1H']];
+const clvMark = c => c === 'B' ? '<span class="cv b" title="Beat the closing line">▲</span>' : c === 'W' ? '<span class="cv w" title="Worse than the closing line">▼</span>' : c === 'S' ? '<span class="cv s" title="Same as the close">=</span>' : '';
+const oddsTxt = o => o == null ? '' : (o > 0 ? '+' : '−') + Math.abs(o);
+const lineTxt = x => x.m === 'ML' ? `${x.side} ${oddsTxt(x.odds)}` : /SPREAD/.test(x.m) ? `${x.side} ${x.line > 0 ? '+' : ''}${x.line}${x.m === '1H SPREAD' ? ' 1H' : ''}`
+  : `${x.m === 'TEAM TOTAL' ? x.tm + ' ' : ''}${x.side === 'OVER' ? 'Over' : 'Under'} ${x.line}${x.m === '1H TOTAL' ? ' 1H' : ''}`;
+const lineMk = { ML: 'Moneyline', SPREAD: 'Spread', 'GAME TOTAL': 'Game total', 'TEAM TOTAL': 'Team total', '1H SPREAD': '1H spread', '1H TOTAL': '1H total' };
+function pgRows(R) {
+  const pg = R.pg || { d: [], g: {}, p: [], l: [] };
+  return { pg,
+    p: pg.p.map(r => ({ g: r[0], who: r[1], tm: r[2], m: r[3], line: r[4], side: r[5], odds: r[6], edge: recPricing === 'rp' && r[12] != null ? r[12] : r[7], proj: r[8], act: r[9], hit: r[10], close: r[11] })),
+    l: pg.l.map(r => ({ g: r[0], tm: r[1], m: r[2], line: r[3], side: r[4], odds: r[5], edge: r[6], act: r[7], hit: r[8], close: r[9] })) };
+}
+const unitsOf = x => x.hit ? (x.odds == null ? 100 / 110 : x.odds > 0 ? x.odds / 100 : 100 / Math.abs(x.odds)) : -1;
+const md2 = d => { const t = new Date(d + 'T12:00:00'); return ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][t.getDay()] + ' ' + d.slice(5).replace('-', '/'); };
+
+function recRankCard(R, P, h) {
+  const RK = P.rk || {};
+  const ROWS = [['1', '#1 of the night'], ['3', 'Top 3'], ['5', 'Top 5'], ['G1', 'Each game’s #1']];
+  const allP = REC_PM.reduce((a, [k]) => { const v = P.pm[k]; if (v) for (let i = 0; i < 4; i++) a[i] += v[i]; return a; }, [0, 0, 0, 0]);
+  const allG = Object.keys(P.sl || {}).filter(k => /^Gms\|/.test(k)).reduce((a, k) => { const v = P.sl[k]; for (let i = 0; i < 4; i++) a[i] += v[i]; return a; }, [0, 0, 0, 0]);
+  const block = (pre, all, allName) => {
+    const rows = ROWS.map(([k, n]) => ({ n, v: RK[pre + k] })).filter(x => x.v && x.v[0]);
+    if (!rows.length) return '<p class="muted">Nothing graded in this period.</p>';
+    const line = (n, v, cls) => { const c = v[0], hit = v[1] / c, need = v[3] / c;
+      return `<tr class="${cls || (c < SMALL ? 'thin' : '')}"><td class="l">${n}</td><td>${h.hb(hit, need, hit >= need ? 'up' : 'dn')}</td><td>${v[1]}–${c - v[1]}</td><td><b>${pct(hit)}</b></td>${h.uC(v[2])}</tr>`; };
+    return h.tbl(['Each night', 'Hit vs needed', 'Record', 'Hit', 'Units'], rows.map(x => line(x.n, x.v)).concat(all[0] ? [line(allName, all, 'tot')] : []));
+  };
+  // last night's #1 of each kind
+  const { pg, p, l } = pgRows(R), d0 = pg.d[0];
+  const top = xs => xs.filter(x => pg.g[x.g] && pg.g[x.g][0] === d0).sort((a, b) => b.edge - a.edge)[0];
+  const tp = top(p), tl = top(l);
+  const lastTop = (x, txt) => x ? `<p class="rfoot pg-top">Last night’s #1: <b>${txt}</b> · ${sgn(x.edge * 100, 1)}% edge · ${badge({ grade: x.hit ? 'W' : 'L', soft: true })}</p>` : '';
+  const n1 = (RK.P1 || [0])[0];
+  let tk = '';
+  if (n1 && n1 < 15) tk = h.take('e', 'Early', `${n1} night${n1 === 1 ? '' : 's'} so far, so the #1 pick has only ${n1} tries. These rows mean something after a few weeks; top 5 and each game’s #1 settle faster.`);
+  else if (n1) {
+    const m = v => v && v[0] ? v[1] / v[0] - v[3] / v[0] : null, mt = m(RK.P5), ma = m(allP);
+    tk = mt != null && ma != null && mt - ma >= 0.03 ? h.take('g', 'Good sign', `The top 5 props each night beat break-even by <b>${Math.round(mt * 100)} points</b>, ahead of props overall (${sgn(ma * 100, 0)}). Ranking by edge is sorting winners to the top.`)
+      : mt != null && ma != null && mt <= ma ? h.take('r', 'Problem', 'The top-ranked props are doing <b>no better</b> than props overall. The biggest edges aren’t the best picks yet.')
+      : h.take('w', 'Watch', 'The top-ranked props are only slightly ahead of props overall.');
+  }
+  return h.card('Top edges each night', 'Every graded pick ranked by edge within its night. Does the model’s #1 pick do better than the rest? Player props and game lines are ranked separately. Check-marked props are left out.',
+    tk + `<div class="rk-2"><div><h4 class="rh4">Player props</h4>${block('P', allP, 'All props')}${lastTop(tp, tp ? esc(tp.who) + ' ' + (tp.side === 'OVER' ? 'O' : 'U') + ' ' + tp.line + ' ' + tp.m : '')}</div>
+      <div><h4 class="rh4">Game lines · NBA ALGO</h4>${block('G', allG, 'All game lines')}${lastTop(tl, tl ? esc(lineTxt(tl)) : '')}</div></div>`
+    + h.foot('Every line with a model side counts here, flagged or not, at 1 unit (−110 unless it’s a moneyline). “Each game’s #1” = the single biggest edge in every game.'), true);
+}
+
+function recPropsByGame(R, h) {
+  const { pg, p, l } = pgRows(R);
+  if (!pg.d.length) return h.card('Props by game', '', '<p class="muted">Nothing graded yet.</p>', true);
+  if (!pg.d.includes(pgDate)) pgDate = pg.d[0];
+  const ids = Object.keys(pg.g).filter(g => pg.g[g][0] === pgDate).sort((a, b) => a < b ? -1 : 1);
+  if (!ids.includes(pgGame)) pgGame = ids[0] || '';
+  const isP = pgKind === 'p', src = (isP ? p : l).filter(x => x.g === pgGame);
+  const mkOk = x => pgMk === 'ALL' || (isP ? x.m === pgMk : pgMk === '1H' ? /^1H/.test(x.m) : x.m === pgMk);
+  const ord = { B: 0, S: 1, W: 2 };
+  const rows = src.filter(mkOk).sort(pgSort === 'hit' ? (a, b) => b.hit - a.hit || b.edge - a.edge
+    : pgSort === 'close' ? (a, b) => (ord[a.close] ?? 3) - (ord[b.close] ?? 3) || b.edge - a.edge : (a, b) => b.edge - a.edge);
+  const shown = pgAll ? rows : rows.slice(0, 5);
+  const gTop5 = gid => { const xs = (isP ? p : l).filter(x => x.g === gid).sort((a, b) => b.edge - a.edge).slice(0, 5), w = xs.filter(x => x.hit).length; return [w, xs.length - w]; };
+  const dates = `<div class="pg-chips" role="group" aria-label="Night">${pg.d.map(d => `<button type="button" class="chip" data-pgdate="${d}" aria-pressed="${d === pgDate}">${md2(d)}</button>`).join('')}</div>`;
+  const games = `<div class="ln-pick" role="group" aria-label="Game">${ids.map(gid => { const t = pg.g[gid].slice(1).filter(Boolean), r = gTop5(gid);
+    return `<button type="button" class="ln-chip" data-pggame="${esc(gid)}" aria-pressed="${gid === pgGame}">${t.map(c => logo(c)).join('')}<b>${esc(t.join(' @ '))}</b><span title="Top 5 by edge">${r[0]}–${r[1]}</span></button>`; }).join('')}</div>`;
+  const kinds = `<span class="seg-s" role="group" aria-label="Kind">${[['p', 'Player props'], ['l', 'Game lines']].map(([k, n]) => `<button type="button" data-pgkind="${k}" aria-pressed="${k === pgKind}">${n}</button>`).join('')}</span>`;
+  const mks = (isP ? [['ALL', 'All']].concat(REC_PM.map(([k]) => [k, k])) : PG_MK_L).map(([k, n]) => `<button type="button" class="chip sm" data-pgmk="${k}" aria-pressed="${k === pgMk}">${n}</button>`).join('');
+  const sorts = `<span class="pg-sort">Sort ${[['edge', 'Edge'], ['hit', 'Hit'], ['close', 'Beat close']].map(([k, n]) => `<button type="button" data-pgsort="${k}" aria-pressed="${k === pgSort}">${n}</button>`).join('')}</span>`;
+  const row = (x, i) => isP
+    ? `<div class="pg-row"><span class="pg-n">${i + 1}</span><div class="pg-who"><b>${esc(x.who)}</b> <em>${esc(x.m)}</em><small>${x.side === 'OVER' ? 'Over' : 'Under'} ${x.line} · ${oddsTxt(x.odds)} · ${esc(x.tm)} ${clvMark(x.close)}</small></div>
+        <span class="pg-e ${x.edge > 0 ? 'pos' : 'mut'}">${sgn(x.edge * 100, 1)}%</span><span class="pg-pa">${x.proj == null ? '—' : f1(x.proj)} → <b>${x.act == null ? '—' : esc(x.act)}</b></span>${badge({ grade: x.hit ? 'W' : 'L', soft: true })}</div>`
+    : `<div class="pg-row"><span class="pg-n">${i + 1}</span><div class="pg-who"><b>${esc(lineTxt(x))}</b><small>${esc(lineMk[x.m] || x.m)}${x.m !== 'ML' ? ' · −110' : ''} ${clvMark(x.close)}</small></div>
+        <span class="pg-e ${x.edge > 0 ? 'pos' : 'mut'}">${sgn(x.edge * 100, 1)}%</span><span class="pg-pa">${x.act == null ? '—' : `<b>${/TOTAL/.test(x.m) ? esc(x.act) : sgn(x.act, 0)}</b>`}</span>${badge({ grade: x.hit ? 'W' : 'L', soft: true })}</div>`;
+  const w = shown.filter(x => x.hit).length, u = shown.reduce((a, x) => a + unitsOf(x), 0);
+  const older = pgDate !== pg.d[0] && isP;
+  const more = rows.length > 5 ? `<button type="button" class="chip sm" data-pgall>${pgAll ? 'Show top 5' : `Show all ${rows.length}${older ? ' kept' : ''}`}</button>` : '';
+  const list = shown.length ? `<div class="pg-list"><div class="pg-row pg-h"><span></span><span>${isP ? 'Player · pick' : 'Pick'}</span><span>Edge</span><span>${isP ? 'Proj → act' : 'Result'}</span><span></span></div>${shown.map(row).join('')}</div>
+    <div class="pg-foot"><span>${pgAll ? 'Shown' : 'Top ' + shown.length}: <b>${w}–${shown.length - w}</b> · ${recU(u)}u</span>${more}</div>${older && rows.length >= 10 && pgAll ? h.foot('Older nights keep each game’s top 10 props by edge; last night keeps all of them.') : ''}`
+    : '<p class="muted">Nothing graded for this filter.</p>';
+  return h.card('Props by game', 'Each game’s picks ranked by edge, top 5 first. Pick a night and a game, filter by type, or re-sort. Every graded pick counts at 1 unit, flagged or not.',
+    dates + games + `<div class="pg-tools">${kinds}<span class="pg-mks">${mks}</span>${sorts}</div>` + list, true);
+}
+
+const WH_DIMS = {
+  p: [['ms', 'Market + side'], ['eg', 'Edge'], ['pr', 'Price'], ['gp', 'Projection vs line'], ['mn', 'Minutes vs usual'], ['df', 'Opponent defense'], ['to', 'Teammates out'],
+    ['sp', 'Spread'], ['tt', 'Game total'], ['mv', 'Line move since 8 AM'], ['ha', 'Home / away'], ['rs', 'Rest'], ['mo', 'Model vs market'], ['bc', 'Beat close']],
+  g: [['ms', 'Market'], ['eg', 'Edge'], ['sp', 'Spread'], ['tt', 'Game total'], ['ha', 'Home / away'], ['rs', 'Rest'], ['to', 'Teammates out'], ['bc', 'Beat close']] };
+const WH_NAMES = {
+  eg: { u3: 'under 3%', b3: '3–5%', b5: '5–8%', b8: '8–12%', b12: '12%+', n0: 'below 0 (other side)', r0: '0–1%', r1: '1–2%', r2: '2–3%', r3: '3%+' }, pr: { fav: 'Favorite (−130 or shorter)', even: 'Near even', dog: 'Underdog (+110 or longer)' },
+  gp: { a: 'under 5% apart', b: '5–10% apart', c: '10–20% apart', d: '20%+ apart' }, mn: { up: '3+ more minutes', same: 'about his usual', down: '3+ fewer minutes' },
+  df: { soft: 'soft (4%+ easier)', avg: 'about average', tough: 'tough (4%+ harder)' }, to: { none: 'nobody out', some: 'under 25 min out', major: '25+ min out' },
+  sp: { close: 'under 5', mid: '5 to 9.5', big: '10 or more' }, tt: { low: 'under 220', mid: '220 to 234.5', high: '235 or more' },
+  mv: { with: 'moved our way', none: 'didn’t move', against: 'moved against us' }, ha: { H: 'Home', A: 'Away' }, rs: { b2b: 'back-to-back', one: '1 day off', two: '2+ days off' },
+  mo: { a: 'model ≈ blend (<5 pts)', b: '5–12 pts apart', c: '12+ pts apart' }, bc: { B: 'beat the close', S: 'same as close', W: 'worse than close' } };
+const WH_NOTE = { mn: 'Projected minutes against his usual minutes.', df: 'Opponent against his position for this stat (1.00 = average).', to: 'Usual minutes of teammates ruled out.',
+  sp: 'His team’s spread, either side.', mv: 'This prop’s line at lock against its 8 AM line.', mo: 'How far the model alone was from the market-blended chance.', gp: 'How far the projection sat from the line.' };
+const WH_NEW = ['mn', 'df', 'to', 'sp', 'tt', 'mv', 'ha', 'rs'];
+function recWhatsHitting(P, h) {
+  const SL = P.sl || {}, pre = whKind === 'g' ? 'G' : '';
+  const dims = WH_DIMS[whKind];
+  if (!dims.some(([k]) => k === whDim)) whDim = 'ms';
+  let rows;
+  if (whDim === 'eg' && whKind === 'p') rows = Object.keys(WH_NAMES.eg).filter(k => P.pe[k]).map(k => ({ n: WH_NAMES.eg[k], v: P.pe[k] }));
+  else {
+    const keys = Object.keys(SL).filter(k => k.indexOf(pre + whDim + '|') === 0);
+    const nm = WH_NAMES[whDim] || {};
+    rows = keys.map(k => { const b = k.split('|')[1]; return { b, n: nm[b] || (whDim === 'ms' ? (() => { const sd = (b.match(/ (OVER|UNDER)$/) || [])[1], mk = sd ? b.slice(0, -sd.length - 1) : b;
+      return (whKind === 'g' ? (lineMk[mk] || mk) : mk) + (sd ? ' ' + sd.toLowerCase() + 's' : ''); })() : b), v: SL[k] }; });
+    const order = Object.keys(nm);
+    rows.sort(whDim === 'ms' ? (a, b) => (b.v[1] / b.v[0] - b.v[3] / b.v[0]) - (a.v[1] / a.v[0] - a.v[3] / a.v[0]) : (a, b) => order.indexOf(a.b) - order.indexOf(b.b));
+  }
+  const kinds = `<span class="seg-s" role="group" aria-label="Kind">${[['p', 'Player props'], ['g', 'Game lines']].map(([k, n]) => `<button type="button" data-whkind="${k}" aria-pressed="${k === whKind}">${n}</button>`).join('')}</span>`;
+  const chips = `<div class="pg-chips">${dims.map(([k, n]) => `<button type="button" class="chip sm" data-whdim="${k}" aria-pressed="${k === whDim}">${n}</button>`).join('')}</div>`;
+  const body = rows.length ? rows.map(x => { const c = x.v[0], hit = x.v[1] / c, need = x.v[3] / c;
+      return recBar(esc(x.n), hit, need, `<b>${pct(hit)}</b> <small class="mut">${c}</small> ${recU(x.v[2])}`, hit >= need ? 'up' : 'dn', c); }).join('')
+    : `<p class="muted">${WH_NEW.includes(whDim) ? 'Logged with each pick starting 10/28. This fills in as those picks are graded.' : 'Nothing graded in this period.'}</p>`;
+  const note = WH_NOTE[whDim] ? `<p class="rfoot">${WH_NOTE[whDim]}</p>` : '';
+  return h.card('What’s hitting', 'Every graded pick grouped by its situation. The bar is how often it hit; the tick is break-even for the prices taken. Small number = picks, then units at 1 each. Faded rows have fewer than ' + SMALL + '.',
+    `<div class="pg-tools">${kinds}</div>` + chips + `<div class="wh-bars">${body}</div>` + note
+    + h.foot('Situations are saved when each pick is logged, before tip, so nothing here uses hindsight. A few hundred picks per row before trusting a gap of a few points.'), true);
+}
+
 /* season record in one place: flagged game picks W–L and units, beat-the-close share (masthead, Record hero) */
 function recSummary(per) {
   const R = B.rec;
@@ -490,7 +613,7 @@ function callNums(c) {
   const mine = pr.find(x => x[0] === (c.model === 'NBA ALGO' ? 'a' : 'p'));
   return { pr, edge: mine ? mine[1] - be : raw, be };
 }
-const bigEdgeOf = () => (B && B.propFlag) || 0.03;
+const bigEdgeOf = () => recPricing === 'rp' && B && B.rec && B.rec.rp && B.rec.rp.has ? B.rec.rp.big || 0.02 : (B && B.propFlag) || 0.03;
 function renderRecordPage() {
   const R = B.rec;
   const howto = `<h2 class="h2b">Reading The Slate</h2>
@@ -502,7 +625,9 @@ function renderRecordPage() {
     </div>`;
   if (!R || R.error || !R.lastDay) return `<section id="record"><h2>Record</h2>${trackingNote()}
     <div class="empty"><b>${R && R.error ? 'The record could not be built: ' + esc(R.error) : 'No graded games yet.'}</b> Every line is logged about an hour before tip and graded the next morning.</div>${howto}</section>`;
-  const P = R.periods[recPer] || R.periods.season;
+  const P0 = R.periods[recPer] || R.periods.season;
+  const rpOn = recPricing === 'rp' && R.rp && R.rp.has;
+  const P = rpOn ? Object.assign({}, P0, R.rp.periods[recPer] || R.rp.periods.season) : P0;
   const tot = (o, keys) => keys.reduce((a, k) => { (o[k] || []).forEach((v, i) => { a[i] = (a[i] || 0) + v; }); return a; }, []);
   const g = tot(P.gm, REC_MK.map(x => x[0])), pr = tot(P.pm, REC_PM.map(x => x[0])), cl = P.cl.ALL || [0, 0, 0], pts = P.pj.PTS || [0, 0, 0, 0];
   const gN = (g[0] || 0) + (g[1] || 0), prN = pr[0] || 0;
@@ -605,15 +730,15 @@ function renderRecordPage() {
 
   // does a bigger edge win more?
   const cap = (P_ => (P_ && P_.propCap) || 0.15)(B.params);
-  const EB_NAME = { u3: 'under 3%', b3: '3–5%', b5: '5–8%', b8: '8–12%', b12: `12–${Math.round(cap * 100)}%`, chk: `Over ${Math.round(cap * 100)}% or minutes off` };
+  const EB_NAME = { u3: 'under 3%', b3: '3–5%', b5: '5–8%', b8: '8–12%', b12: `12–${Math.round(cap * 100)}%`, n0: 'below 0 (other side)', r0: '0–1%', r1: '1–2%', r2: '2–3%', r3: '3%+', chk: `Over ${Math.round(cap * 100)}% or minutes off` };
   const ebList = REC_EB.filter(([k]) => P.pe[k]).map(([k]) => { const v = P.pe[k]; return { k, name: EB_NAME[k], c: v[0], h: v[1], u: v[2], need: v[3] / v[0] }; });
   let ebTake = '';
   const ebN = ebList.filter(x => x.k !== 'chk').reduce((a, x) => a + x.c, 0);
   if (ebN && ebN < 100) ebTake = take('e', 'Early', `${ebN} graded props so far. Each edge group needs a few dozen before the pattern means much.`);
   else if (ebN) {
-    const top = ebList.filter(x => (x.k === 'b12' || x.k === 'b8') && x.c >= 20), low = ebList.filter(x => (x.k === 'u3' || x.k === 'b3') && x.c >= 20);
+    const top = ebList.filter(x => (x.k === 'b12' || x.k === 'b8' || x.k === 'r3') && x.c >= 20), low = ebList.filter(x => (x.k === 'u3' || x.k === 'b3' || x.k === 'n0' || x.k === 'r0') && x.c >= 20);
     const margin = xs => { const c = xs.reduce((a, x) => a + x.c, 0); return c ? xs.reduce((a, x) => a + (x.h / x.c - x.need) * x.c, 0) / c : null; };
-    const mt = margin(top), ml = margin(low), t12 = ebList.find(x => x.k === 'b12');
+    const mt = margin(top), ml = margin(low), t12 = ebList.find(x => x.k === 'b12') || ebList.find(x => x.k === 'r3');
     if (mt != null && ml != null && mt - ml >= 0.03) ebTake = take('g', 'Good sign', t12 && t12.c >= 20 ? `Edges of <b>${t12.name}</b> hit <b>${pct(t12.h / t12.c)}</b> when they needed ${pct(t12.need)}. Small edges are close to a coin flip after the juice.` : 'The bigger edge groups are clearing break-even by more than the small ones.');
     else if (mt != null && mt < 0) ebTake = take('r', 'Problem', 'The biggest edges are hitting <b>below</b> what their prices needed. The edge number may be overstating the model.');
     else ebTake = take('w', 'Watch', 'Bigger edges aren\'t clearly winning more yet. The groups are hitting about the same against what they needed.');
@@ -676,10 +801,17 @@ function renderRecordPage() {
   const perLabel = { season: 'the whole season', d7: 'the last 7 game days', last: 'last night (' + R.lastDay.slice(5).replace('-', '/') + ')' }[recPer];
   const card = (title, sub, body, wide) => `<div class="rcard${wide ? ' wide' : ''}"><h3>${title}</h3>${sub ? `<p class="rq">${sub}</p>` : ''}${body}</div>`;
   const foot = t => `<p class="rfoot">${t}</p>`;
+  const H10 = { tbl, hb, uC, roiC, take, card, foot };
   return `<section id="record"><h2>Record</h2>
     ${trackingNote()}
     <div class="tools"><span class="seg-s" role="group" aria-label="Period">${[['season', 'Season'], ['d7', 'Last 7 days'], ['last', 'Last night']].map(([k, n]) => `<button type="button" data-recper="${k}" aria-pressed="${k === recPer}">${n}</button>`).join('')}</span><span class="muted-s">Showing ${perLabel}. Faded rows have fewer than ${SMALL} picks.</span></div>
+    ${R.rp && R.rp.has ? `<div class="tools rp-tools"><span class="seg-s" role="group" aria-label="Prop edges">${[['rp', 'Today’s pricing'], ['log', 'As logged']].map(([k, n]) => `<button type="button" data-recpricing="${k}" aria-pressed="${k === recPricing}">${n}</button>`).join('')}</span><span class="muted-s">${rpOn
+      ? 'Prop edges before 10/27 are recalculated on today’s pricing (25% model, 75% market, no under lean) from the projection, line and price saved at the time, so the whole season is on one scale. Results and sides never change.'
+      : 'Prop edges exactly as logged. Before 10/27 they came from the old pricing and run about four times bigger, so edge groups mix two scales.'}</span></div>` : ''}
     ${hero}
+    ${recRankCard(R, P, H10)}
+    ${recPropsByGame(R, H10)}
+    ${recWhatsHitting(P, H10)}
     ${card('Units over time', 'Running profit if every pick had been 1 unit, night by night, for the whole season. Tracking only, not real bets. A rising line means the picks are making money.', unitsTake + unitsChart(R.units) + unitStats, true)}
     <div class="rgrid">
       ${card('Game picks by market', 'Flagged NBA ALGO picks on spreads, totals and moneylines. “Needed” is the win rate the prices required to break even (52.4% at −110).',
@@ -1992,7 +2124,20 @@ function render(data) {
       if (t && VIEW.name === 'game') { navigate(hashOf({ name: 'game', id: VIEW.id, tab: t.dataset.tab }), true); return; }
       const tw = e.target.closest('[data-twin]'); if (tw) { teamWin = tw.dataset.twin; redrawTeamBits(); return; }
       const tsd = e.target.closest('[data-tside]'); if (tsd) { teamSide = tsd.dataset.tside; redrawTeamBits(); return; }
+      const rpx = e.target.closest('[data-recpricing]'); if (rpx) { recPricing = rpx.dataset.recpricing; const y = window.scrollY; $('#main').innerHTML = renderRecordPage(); window.scrollTo(0, y); return; }
       const rp = e.target.closest('[data-recper]'); if (rp) { recPer = rp.dataset.recper; $('#main').innerHTML = renderRecordPage(); return; }
+      { const redraw = () => { const y = window.scrollY; $('#main').innerHTML = renderRecordPage(); window.scrollTo(0, y); };
+        const a = e.target.closest('[data-pgdate],[data-pggame],[data-pgkind],[data-pgmk],[data-pgsort],[data-pgall],[data-whkind],[data-whdim]');
+        if (a) { const d = a.dataset;
+          if (d.pgdate) { pgDate = d.pgdate; pgGame = ''; pgAll = false; }
+          else if (d.pggame) { pgGame = d.pggame; pgAll = false; }
+          else if (d.pgkind) { pgKind = d.pgkind; pgMk = 'ALL'; pgAll = false; }
+          else if (d.pgmk) { pgMk = d.pgmk; pgAll = false; }
+          else if (d.pgsort) pgSort = d.pgsort;
+          else if ('pgall' in d) pgAll = !pgAll;
+          else if (d.whkind) { whKind = d.whkind; whDim = 'ms'; }
+          else if (d.whdim) whDim = d.whdim;
+          redraw(); return; } }
       const rg = e.target.closest('[data-recgame]'); if (rg) { recGame = rg.dataset.recgame; const y = window.scrollY; $('#main').innerHTML = renderRecordPage(); window.scrollTo(0, y); return; }
       if (e.target.closest('[data-recflag]')) { recFlagOnly = !recFlagOnly; const y = window.scrollY; $('#main').innerHTML = renderRecordPage(); window.scrollTo(0, y); return; }
       const tso = e.target.closest('[data-tsort]'); if (tso) { if (teamSort === tso.dataset.tsort) teamDir = teamDir === 'desc' ? 'asc' : 'desc'; else { teamSort = tso.dataset.tsort; teamDir = 'desc'; } redrawTeamBits(); return; }
@@ -2047,7 +2192,6 @@ function safeRender(data) {
   try { render(data); }
   catch (e) { showError({ message: 'The page hit a problem drawing the data (' + (e && e.message || e) + ')' }); console.error(e); }
 }
-
 window.__MAIN__ = 2;
 let slateBusy = false, slateLastLoaded = 0;
 async function loadSlate() {
