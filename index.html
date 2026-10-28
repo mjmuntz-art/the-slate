@@ -1288,6 +1288,39 @@ table.rtb tr.cvall td { font-weight: 700; }
 @media (max-width: 600px) { .wrap { padding-left: max(16px, env(safe-area-inset-left)); padding-right: max(16px, env(safe-area-inset-right)); } }
 .mast .wrap { padding-top: calc(20px + env(safe-area-inset-top)); }
 @media (max-width: 420px) { .mast .wrap { padding-top: calc(14px + env(safe-area-inset-top)); padding-bottom: 12px; } .mast h1 { font-size: 40px; } .mrec { margin-top: 6px; } .mrec b { font-size: 20px; } .mast .date { font-size: 13.5px; margin-top: 6px; } }
+/* ===== 10-27b: top edges, props by game, what's hitting ===== */
+.rk-2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px; }
+.rk-2 .rh4 { margin-top: 2px; }
+@media (max-width: 860px) { .rk-2 { grid-template-columns: minmax(0, 1fr); gap: 6px; } }
+.pg-top { margin-top: 6px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.pg-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 8px; }
+.chip.sm { padding: 4px 10px; font-size: 12px; }
+.pg-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 2px 0 8px; }
+.pg-mks { display: flex; flex-wrap: wrap; gap: 5px; }
+.pg-sort { margin-left: auto; font-size: 12px; color: var(--ink-3); display: inline-flex; align-items: center; gap: 2px; }
+.pg-sort button { border: 0; background: none; font: inherit; font-weight: 600; color: var(--ink-2); padding: 4px 6px; border-radius: 6px; cursor: pointer; }
+.pg-sort button[aria-pressed="true"] { color: var(--ink); background: var(--rule-2); }
+.pg-list { border-top: 1px solid var(--rule-2); }
+.pg-row { display: grid; grid-template-columns: 26px minmax(0, 1fr) 64px 92px 28px; gap: 8px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--rule-2); font-size: 13.5px; }
+.pg-row.pg-h { font-size: 10.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); padding: 6px 0; }
+.pg-n { font: 800 20px/1 var(--display); color: var(--ink); }
+.pg-who { min-width: 0; }
+.pg-who b { font-weight: 700; }
+.pg-who em { font-style: normal; font-size: 10.5px; font-weight: 700; letter-spacing: .06em; color: var(--ink-3); margin-left: 2px; }
+.pg-who small { display: block; color: var(--ink-2); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pg-e { font-weight: 700; text-align: right; } .pg-e.pos { color: var(--win); }
+.pg-pa { text-align: right; color: var(--ink-2); white-space: nowrap; }
+.pg-pa b { color: var(--ink); }
+.pg-foot { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding-top: 10px; font-size: 13px; color: var(--ink-2); }
+.pg-foot b { color: var(--ink); }
+@media (max-width: 560px) {
+  .pg-row { grid-template-columns: 20px minmax(0, 1fr) 50px 66px 24px; gap: 6px; font-size: 13px; }
+  .pg-n { font-size: 17px; }
+  .pg-sort { margin-left: 0; }
+}
+.wh-bars .rb { grid-template-columns: 170px minmax(0, 1fr) 128px; }
+.wh-bars .rb-l { white-space: normal; line-height: 1.25; }
+@media (max-width: 560px) { .wh-bars .rb { grid-template-columns: 112px minmax(0, 1fr) 104px; gap: 7px; font-size: 12.5px; } }
 </style>
 
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1325,8 +1358,8 @@ html { background: var(--ink); }
 <nav class="tabbar" aria-label="Sections"><div class="wrap"><button type="button" data-go="" data-view="today" class="on"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg><span>Today</span></button><button type="button" data-go="props" data-view="props"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7.5A1.5 1.5 0 0 1 5.5 6h13A1.5 1.5 0 0 1 20 7.5V10a2 2 0 0 0 0 4v2.5a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 16.5V14a2 2 0 0 0 0-4z"/><path d="M14.5 7v10" stroke-dasharray="1.6 2.2"/></svg><span>Props</span></button><button type="button" data-go="players" data-view="players"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.6"/><path d="M5 20c.8-3.6 3.6-5.6 7-5.6s6.2 2 7 5.6"/></svg><span>Players</span></button><button type="button" data-go="teams" data-view="teams"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.2l7 2.8v5.2c0 4.4-2.9 7.8-7 9.6-4.1-1.8-7-5.2-7-9.6V6z"/><path d="M12 7.5v9M8.5 11.5h7"/></svg><span>Teams</span></button><button type="button" data-go="record" data-view="record"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 19.5v-7M10 19.5V6M15 19.5v-9M20 19.5V9M3 19.5h18"/></svg><span>Record</span></button></div></nav>
 <div class="ticker" id="ticker" hidden></div>
 <div id="app-status" class="wrap" role="status" style="padding:16px;color:#8c321d" hidden></div>
-<main class="wrap" id="main"><p class="loading">Opening the board… (page build 10-27b)</p></main>
-<footer class="wrap"><p class="build" id="build">Page build 10-27b</p></footer>
+<main class="wrap" id="main"><p class="loading">Opening the board… (page build 10-27c)</p></main>
+<footer class="wrap"><p class="build" id="build">Page build 10-27c</p></footer>
 <dialog class="card" id="card" aria-label="Player"></dialog>
 
 <script src="config.js"></script>
