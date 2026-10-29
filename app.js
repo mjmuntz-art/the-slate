@@ -397,7 +397,8 @@ const recU = u => `<span class="${u > 0.005 ? 'pos' : u < -0.005 ? 'neg' : ''}">
 function unitsChart(series) {
   if (!series || series.length < 2) return `<p class="muted">The line starts once there are two graded nights.</p>`;
   const W = Math.round(Math.max(300, Math.min(1000, (window.innerWidth || 800) - 70))), H = W < 500 ? 170 : 160, L = 34, R = 10, T = 12, Bm = 22;   // drawn at the real width so the labels stay readable
-  const vals = series.flatMap(s => [s[1], s[2]]).concat([0]);
+  const three = series[0] && series[0][3] != null;
+  const vals = series.flatMap(s => three ? [s[1], s[3], s[4]] : [s[1], s[2]]).concat([0]);
   let lo = Math.min(...vals), hi = Math.max(...vals); const pad = Math.max(1, (hi - lo) * 0.1); lo -= pad; hi += pad;
   const x = i => L + (W - L - R) * (series.length === 1 ? 0 : i / (series.length - 1)), y = v => T + (H - T - Bm) * (1 - (v - lo) / (hi - lo));
   const path = k => series.map((s, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(s[k]).toFixed(1)}`).join('');
@@ -406,11 +407,11 @@ function unitsChart(series) {
   return `<svg class="uchart" viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Running units by night">
     <line x1="${L}" x2="${W - R}" y1="${y(0)}" y2="${y(0)}" class="z"/>
     <text x="${L - 6}" y="${y(0) + 4}" text-anchor="end">0</text><text x="${L - 6}" y="${y(hi) + 10}" text-anchor="end">${sgn(hi, 0)}</text><text x="${L - 6}" y="${y(lo)}" text-anchor="end">${sgn(lo, 0)}</text>
-    <path d="${path(2)}" class="lp"/><path d="${path(1)}" class="lg"/>
-    <circle cx="${x(series.length - 1)}" cy="${y(last[1])}" r="4" class="dg"/><circle cx="${x(series.length - 1)}" cy="${y(last[2])}" r="4" class="dp"/>
+    ${three ? `<path d="${path(4)}" class="lt"/><path d="${path(3)}" class="lp"/>` : `<path d="${path(2)}" class="lp"/>`}<path d="${path(1)}" class="lg"/>
+    <circle cx="${x(series.length - 1)}" cy="${y(last[1])}" r="4" class="dg"/><circle cx="${x(series.length - 1)}" cy="${y(last[three ? 3 : 2])}" r="4" class="dp"/>
     <text x="${L}" y="${H - 4}">${d(series[0][0])}</text><text x="${W - R}" y="${H - 4}" text-anchor="end">${d(last[0])}</text>
   </svg>
-  <div class="ulg"><span><i class="dg"></i>Flagged game picks ${recU(last[1])}</span><span><i class="dp"></i>Every prop at 1 unit ${recU(last[2])}</span></div>`;
+  <div class="ulg"><span><i class="dg"></i>Flagged game picks ${recU(last[1])}</span>${three ? `<span><i class="dp"></i>Flagged props ${recU(last[3])}</span><span><i class="dt"></i>Top 5 props each night ${recU(last[4])}</span>` : `<span><i class="dp"></i>Every prop at 1 unit ${recU(last[2])}</span>`}</div>`;
 }
 function calibChart(pc) {
   const pts = REC_CB.map(k => pc[k]).filter(v => v && v[0] > 0).map(v => ({ n: v[0], said: v[2] / v[0], hit: v[1] / v[0] }));
@@ -632,15 +633,18 @@ function renderRecordPage() {
   const g = tot(P.gm, REC_MK.map(x => x[0])), pr = tot(P.pm, REC_PM.map(x => x[0])), cl = P.cl.ALL || [0, 0, 0], pts = P.pj.PTS || [0, 0, 0, 0];
   const gN = (g[0] || 0) + (g[1] || 0), prN = pr[0] || 0;
   const S = recSummary(recPer), lastFl = (R.last || []).filter(x => x.t === 'A' && x.flag === 'Y');
+  // 10-27d: hero props cards = flagged props and the top 5 each night ([n, hit, units, break-even sum])
+  const heroCard = (title, v, chip) => { const n = v ? v[0] : 0, h = n ? v[1] / n : null, need = n ? v[3] / n : null;
+    return `<div class="rh-card"><small>${title}</small><b>${n ? pct(h) : '—'}</b><em>${n ? `${v[1]}–${n - v[1]} · needed ${pct(need)} · ${recU(v[2])}u` : 'none graded yet'}</em>
+      <div class="rh-chips">${chip ? `<span>${chip}</span>` : ''}${n ? (Math.abs(h - need) < 0.01 ? '<span>about break-even</span>' : `<span class="${h >= need ? 'pos' : 'neg'}">${Math.round(Math.abs(h - need) * 100)} pts ${h >= need ? 'over' : 'under'} break-even</span>`) : ''}</div></div>`; };
   const ring = S && S.clPct != null ? `<span class="rring" style="--p:${(S.clPct * 100).toFixed(1)}"><b>${pct(S.clPct)}</b></span>` : `<span class="rring" style="--p:0"><b>—</b></span>`;
   const hero = `<div class="rhero">
     <div class="rh-big"><small>Flagged game picks · ${recPer === 'season' ? 'season' : recPer === 'd7' ? 'last 7 days' : 'last night'}</small>
       <div class="rh-wl">${gN ? `<span class="w">${g[0]}</span>–<span class="l">${g[1]}</span>` : '—'}</div>
       <div class="rh-sub">${gN ? `${recU(g[2])} units · ROI ${sgn(g[2] / gN * 100, 0)}%` : 'none graded yet'}</div>
       ${lastFl.length ? `<div class="rh-strip" title="Last night's flagged game picks">${lastFl.map(x => `<i class="${x.hit ? 'w' : 'l'}" title="${esc(recPickTxt(x))}">${x.hit ? 'W' : 'L'}</i>`).join('')}<span>last night</span></div>` : ''}</div>
-    <div class="rh-card">${ring}<small>Beat the closing line</small><b>${S && S.beat + S.worse ? `${S.beat}/${S.beat + S.worse}` : '—'}</b><em>${S && S.beat + S.worse ? 'picks where the market moved our way after we logged' : 'closes fill in each morning'}</em></div>
-    <div class="rh-card"><small>Every graded prop</small><b>${prN ? pct(pr[1] / prN) : '—'}</b><em>${prN ? `${pr[1]} of ${prN} hit · break-even ${pct(pr[3] / prN)}` : 'none graded yet'}</em>
-      <div class="rh-chips">${pts[0] ? `<span>Points miss ${f1(pts[1] / pts[0])}</span>` : ''}${pts[2] && pts[3] ? `<span class="${(pts[1] / pts[0]) <= (pts[3] / pts[2]) ? 'pos' : 'neg'}">${(pts[1] / pts[0]) <= (pts[3] / pts[2]) ? pct(1 - (pts[1] / pts[0]) / (pts[3] / pts[2])) + ' better than baseline' : pct((pts[1] / pts[0]) / (pts[3] / pts[2]) - 1) + ' worse than baseline'}</span>` : ''}</div></div>
+    ${heroCard('Flagged props', P.pf && P.pf.ALL, rpOn ? `edge ${pct(B.propFlag || 0.02)}+ · today’s pricing` : 'flagged when logged')}
+    ${heroCard('Top 5 each night', P.rk && P.rk.P5, S && S.beat + S.worse ? `beat the close ${pct(S.clPct)}` : 'props, ranked by edge')}
   </div>`;
   const tiles = `<div class="rtiles" hidden>
     <div class="rtile"><small>Flagged game picks</small><b>${gN ? `${g[0]}–${g[1]}` : '—'}</b><em>${gN ? `${recU(g[2])} units · ROI ${sgn(g[2] / gN * 100, 0)}%` : 'none graded yet'}</em></div>
@@ -660,20 +664,21 @@ function renderRecordPage() {
 
   const pa = P.pa, paN = pa[0] + pa[1];
   // units over time (always the whole season)
-  const series = R.units || [];
-  const nights = series.map((s0, i) => [s0[0], i ? (s0[1] - series[i - 1][1]) + (s0[2] - series[i - 1][2]) : s0[1] + s0[2]]);
+  const series = (rpOn && R.rp.units) || R.units || [];
+  const pk = series.length && series[0][3] != null ? 3 : 2;   // flagged props (older servers: every prop)
+  const nights = series.map((s0, i) => [s0[0], i ? (s0[1] - series[i - 1][1]) + (s0[pk] - series[i - 1][pk]) : s0[1] + s0[pk]]);
   const lastU = series.length ? series[series.length - 1] : null;
   let unitsTake = '';
   if (!lastU || series.length < 3) unitsTake = take('e', 'Early', `${series.length || 'No'} graded night${series.length === 1 ? '' : 's'} so far. The trend means more after a week.`);
   else {
-    const gU = lastU[1], pU = lastU[2];
-    unitsTake = gU >= 0 && pU >= 0 ? take('g', 'Good sign', `Both are up: flagged game picks <b>${sgn(gU, 1)}u</b>, props <b>${sgn(pU, 1)}u</b>.`)
-      : gU < 0 && pU < 0 ? take('r', 'Problem', `Both are down: flagged game picks <b>${sgn(gU, 1)}u</b>, props <b>${sgn(pU, 1)}u</b>.`)
-      : take('w', 'Mixed', `<b>${pU > gU ? 'Props are' : 'Game picks are'} carrying the season</b> at ${sgn(Math.max(gU, pU), 1)} units; ${pU > gU ? 'flagged game picks are' : 'props are'} at ${sgn(Math.min(gU, pU), 1)}. Together: ${sgn(gU + pU, 1)}.`);
+    const gU = lastU[1], pU = lastU[3] != null ? lastU[3] : lastU[2];
+    unitsTake = gU >= 0 && pU >= 0 ? take('g', 'Good sign', `Both are up: flagged game picks <b>${sgn(gU, 1)}u</b>, flagged props <b>${sgn(pU, 1)}u</b>.`)
+      : gU < 0 && pU < 0 ? take('r', 'Problem', `Both are down: flagged game picks <b>${sgn(gU, 1)}u</b>, flagged props <b>${sgn(pU, 1)}u</b>.`)
+      : take('w', 'Mixed', `<b>${pU > gU ? 'Flagged props are' : 'Game picks are'} carrying the season</b> at ${sgn(Math.max(gU, pU), 1)} units; ${pU > gU ? 'flagged game picks are' : 'flagged props are'} at ${sgn(Math.min(gU, pU), 1)}. Together: ${sgn(gU + pU, 1)}.`);
   }
   const best = nights.slice().sort((x, y) => y[1] - x[1])[0], worst = nights.slice().sort((x, y) => x[1] - y[1])[0];
   const md = d => d ? d.slice(5).replace('-', '/') : '';
-  const unitStats = lastU ? `<div class="rstats"><div>Season total<b class="${lastU[1] + lastU[2] >= 0 ? 'pos' : 'neg'}">${sgn(lastU[1] + lastU[2], 1)}u</b></div>
+  const unitStats = lastU ? `<div class="rstats"><div>Season total<b class="${lastU[1] + lastU[pk] >= 0 ? 'pos' : 'neg'}">${sgn(lastU[1] + lastU[pk], 1)}u</b></div>
       <div>Best night<b>${sgn(best[1], 1)}u</b>${md(best[0])}</div><div>Worst night<b>${sgn(worst[1], 1)}u</b>${md(worst[0])}</div>
       <div>Winning nights<b>${nights.filter(x => x[1] > 0).length} of ${nights.length}</b></div></div>` : '';
 
@@ -812,11 +817,11 @@ function renderRecordPage() {
     ${recRankCard(R, P, H10)}
     ${recPropsByGame(R, H10)}
     ${recWhatsHitting(P, H10)}
-    ${card('Units over time', 'Running profit if every pick had been 1 unit, night by night, for the whole season. Tracking only, not real bets. A rising line means the picks are making money.', unitsTake + unitsChart(R.units) + unitStats, true)}
+    ${card('Units over time', 'Running profit at 1 unit a pick, night by night, for the whole season: flagged game picks, flagged props and the top 5 props each night. Tracking only, not real bets. Season total and best/worst nights count flagged game picks plus flagged props.', unitsTake + unitsChart(series) + unitStats, true)}
     <div class="rgrid">
       ${card('Game picks by market', 'Flagged NBA ALGO picks on spreads, totals and moneylines. “Needed” is the win rate the prices required to break even (52.4% at −110).',
         ((gmTake + gmTbl) || '<p class="muted">No flagged game picks graded.</p>') + (paN ? foot(`PLAYER ALGO test picks: ${pa[0]}–${pa[1]}, ${sgn(pa[2], 2)} units (not counted above).`) : ''))}
-      ${card('Props by market', 'Every graded prop without a check mark, flagged or not, at 1 unit each. “Needed” is the break-even for the prices actually taken.', (pmTake + pmTbl) || '<p class="muted">No graded props.</p>')}
+      ${card('Props by market', 'Every graded prop without a check mark, flagged or not, at 1 unit each: a check on the model, not a betting record. “Needed” is the break-even for the prices actually taken; at these prices, playing every prop gives up about 3–4 points to the juice even when the model is neutral.', (pmTake + pmTbl) || '<p class="muted">No graded props.</p>')}
       ${card('Is the model honest?', 'When the model says a prop has a 70% chance, it should hit about 70% of the time. This checks that, grouped by what the model said.',
         calTake + calibChart(P.pc) + calTbl + (cal.length ? foot('“On target” = within 3 points. Dots on the dashed line are honest; below it the model was too sure of itself, above it not sure enough. Faded rows have fewer than 20 props.') : ''))}
       ${card('Does a bigger edge win more?', 'Edge = how far the model’s chance beats what the price needs. If the model is right, bigger edges should hit more often and make more money.',
