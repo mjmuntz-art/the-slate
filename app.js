@@ -2228,7 +2228,13 @@ async function loadSlate() {
     window.__BOARD__ = reply.data;
     slateLastLoaded = Date.now();
     const age = Date.now() - Date.parse(reply.savedAt);
-    status.textContent = age > 3 * 60 * 60 * 1000 ? 'Saved board is over 3 hours old. Check the Apps Script automation. Refresh only reloads the saved board.' : '';
+    // The automation saves the board at 8 AM and every 30 minutes on game nights (from an hour before the first tip to 1 AM),
+    // so a quiet afternoon is normal. Warn only when a save was due: game-night hours with a board over 90 minutes old,
+    // or any board over 12 hours old.
+    const ctHour = Number(new Intl.DateTimeFormat('en-US', { hour: 'numeric', hourCycle: 'h23', timeZone: 'America/Chicago' }).format(new Date()));
+    const gameNight = ctHour >= 19 || ctHour < 1;
+    status.textContent = age > 12 * 60 * 60 * 1000 ? 'Saved board is over 12 hours old. Check the Apps Script automation. Refresh only reloads the saved board.'
+      : gameNight && age > 90 * 60 * 1000 ? 'Saved board is over 90 minutes old on a game night. Check the Apps Script automation. Refresh only reloads the saved board.' : '';
     status.hidden = !status.textContent;
     document.getElementById('build').textContent = 'The Slate app · server ' + reply.build + ' · Snapshot ' + new Date(reply.savedAt).toLocaleString();
   } catch (err) {
