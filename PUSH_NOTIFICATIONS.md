@@ -7,9 +7,9 @@ This branch prepares **The Slate** for OneSignal Web Push without changing the d
 - Repo: `mjmuntz-art/the-slate`
 - App key: `slate`
 - OneSignal web origin: `https://mjmuntz-art.github.io` (shared by all four apps).
-- Worker path: `/the-slate/OneSignalSDKWorker.js`
-- Worker scope: `/the-slate/`
-- Landing URL for messages: `https://mjmuntz-art.github.io/the-slate/`
+- Worker path: `/the-slate/push/onesignal/OneSignalSDKWorker.js`
+- Worker scope: `/the-slate/push/onesignal/`
+- Landing URL for messages: `https://mjmuntz-art.github.io/the-slate/push/onesignal/`
 
 ## OneSignal steps
 1. Create a OneSignal **Web** app, integration **Custom Code**. Use the origin `https://mjmuntz-art.github.io`. With four apps on the same origin, plan to **use one OneSignal App ID** for all four, testing behavior on each installed Home Screen app before enabling automated sends.
