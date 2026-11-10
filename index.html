@@ -1325,6 +1325,30 @@ table.rtb tr.cvall td { font-weight: 700; }
 .uchart .lp { stroke-dasharray: none; stroke-width: 2.5; }
 .uchart .lt { fill: none; stroke: #1E7B4F; stroke-width: 2; stroke-dasharray: 5 4; }
 .ulg i.dt { background: #1E7B4F; }
+/* ===== 11-10a: dashboard mode ===== */
+.am-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin: 12px 0 14px; }
+.am { background: var(--sheet); border: 1px solid var(--rule); border-radius: 16px; padding: 16px 18px; min-width: 0; }
+.am small { display: block; font-size: 11.5px; font-weight: 700; color: var(--ink-3); text-transform: uppercase; letter-spacing: .07em; }
+.am b { display: block; font: 800 44px/1 var(--display); margin: 8px 0 6px; }
+.am em { display: block; font-style: normal; font-size: 12.5px; color: var(--ink-2); line-height: 1.35; }
+.am em .pos { color: var(--win); font-weight: 700; } .am em .neg { color: var(--out); font-weight: 700; }
+@media (max-width: 860px) { .am-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; } .am { padding: 14px; } .am b { font-size: 36px; } }
+.gt-tv { font-size: 12.5px; color: var(--ink-2); } .gt-tv b { color: var(--ink); }
+.gc-ln.dash em { display: inline-flex; align-items: center; gap: 6px; min-width: 112px; } .gc-tv { color: var(--ink-2); font-size: 13px; white-space: nowrap; }
+.ptg td, .ptg th { text-align: right; } .ptg td.l, .ptg th.l { text-align: left; } .ptg th i { margin-right: 5px; }
+.prp.dash { grid-template-columns: 52px 40px minmax(0, 1fr) repeat(4, 64px); padding: 9px 12px; }
+.pj-n { text-align: right; } .pj-n b { display: block; font: 800 22px/1 var(--display); } .pj-n small { display: block; font-size: 11px; color: var(--ink-3); margin-top: 3px; }
+.pj-n.mut b { color: #C3C9D1; }
+@media (max-width: 760px) {
+  .prp.dash { grid-template-columns: 44px minmax(0, 1fr) repeat(4, 40px); grid-template-areas: none; gap: 4px 7px; padding: 10px 6px; }
+  .prp.dash .tmk { display: none; } .prp.dash .pr-hs { grid-area: auto; width: 42px; height: 42px; }
+  .prp.dash .pp-pk { grid-area: auto; }
+  .pj-n b { font-size: 19px; }
+}
+.pc-pg.dash { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-areas: "a b" "ml ml"; gap: 10px 14px; }
+.pc-pg.dash .pc-pk { grid-area: a; } .pc-pg.dash .pc-pk.r { grid-area: b; text-align: right; } .pc-pg.dash .pc-ml { grid-area: ml; }
+.pc-pr.dash { grid-template-columns: minmax(0, 1fr) 70px 70px; }
+.pc-pr.dash .pc-prc { text-align: right; }
 </style>
 
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1359,11 +1383,11 @@ html { background: var(--ink); }
     <p class="date" id="date">Loading tonight's games…</p>
   </div>
 </header>
-<nav class="tabbar" aria-label="Sections"><div class="wrap"><button type="button" data-go="" data-view="today" class="on"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg><span>Today</span></button><button type="button" data-go="props" data-view="props"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7.5A1.5 1.5 0 0 1 5.5 6h13A1.5 1.5 0 0 1 20 7.5V10a2 2 0 0 0 0 4v2.5a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 16.5V14a2 2 0 0 0 0-4z"/><path d="M14.5 7v10" stroke-dasharray="1.6 2.2"/></svg><span>Props</span></button><button type="button" data-go="players" data-view="players"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.6"/><path d="M5 20c.8-3.6 3.6-5.6 7-5.6s6.2 2 7 5.6"/></svg><span>Players</span></button><button type="button" data-go="teams" data-view="teams"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.2l7 2.8v5.2c0 4.4-2.9 7.8-7 9.6-4.1-1.8-7-5.2-7-9.6V6z"/><path d="M12 7.5v9M8.5 11.5h7"/></svg><span>Teams</span></button><button type="button" data-go="record" data-view="record"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 19.5v-7M10 19.5V6M15 19.5v-9M20 19.5V9M3 19.5h18"/></svg><span>Record</span></button></div></nav>
+<nav class="tabbar" aria-label="Sections"><div class="wrap"><button type="button" data-go="" data-view="today" class="on"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg><span>Today</span></button><button type="button" data-go="props" data-view="props"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7.5A1.5 1.5 0 0 1 5.5 6h13A1.5 1.5 0 0 1 20 7.5V10a2 2 0 0 0 0 4v2.5a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 16.5V14a2 2 0 0 0 0-4z"/><path d="M14.5 7v10" stroke-dasharray="1.6 2.2"/></svg><span>Projections</span></button><button type="button" data-go="players" data-view="players"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.6"/><path d="M5 20c.8-3.6 3.6-5.6 7-5.6s6.2 2 7 5.6"/></svg><span>Players</span></button><button type="button" data-go="teams" data-view="teams"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.2l7 2.8v5.2c0 4.4-2.9 7.8-7 9.6-4.1-1.8-7-5.2-7-9.6V6z"/><path d="M12 7.5v9M8.5 11.5h7"/></svg><span>Teams</span></button><button type="button" data-go="record" data-view="record"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 19.5v-7M10 19.5V6M15 19.5v-9M20 19.5V9M3 19.5h18"/></svg><span>Record</span></button></div></nav>
 <div class="ticker" id="ticker" hidden></div>
 <div id="app-status" class="wrap" role="status" style="padding:16px;color:#8c321d" hidden></div>
-<main class="wrap" id="main"><p class="loading">Opening the board… (page build 10-27d)</p></main>
-<footer class="wrap"><p class="build" id="build">Page build 10-27d</p></footer>
+<main class="wrap" id="main"><p class="loading">Opening the board… (page build 11-10a)</p></main>
+<footer class="wrap"><p class="build" id="build">Page build 11-10a</p></footer>
 <dialog class="card" id="card" aria-label="Player"></dialog>
 
 <script src="config.js"></script>

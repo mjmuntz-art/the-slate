@@ -1,3 +1,4 @@
+
 window.__MAIN__ = 1;
 const $ = s => document.querySelector(s);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -459,6 +460,194 @@ function recLastList(last, games) {
       </tbody></table></div>` : `<p class="muted">No flagged picks in this game.</p>`;
   return picker + table;
 }
+
+/* ===================== 11-10: DASHBOARD MODE =====================
+   The models stopped being treated as betting tools on 11/10. The page keeps the projections, matchups, player cards
+   and rotations, shows the betting line only as context, and the Record page measures how accurate the projections
+   are. No picks, edges, flags or units anywhere. The sheet keeps logging EDGE LOG in the background. */
+const DASH = true;
+const dShort = (g, M) => M == null ? '—' : Math.abs(M) < 0.05 ? 'Even' : `${M > 0 ? g.home : g.away} by ${Math.abs(M).toFixed(1)}`;
+const vegasMargin = h => h && h.spread != null && h.spread !== '' ? -Number(h.spread) : null;
+function gameTileD(g) {
+  const fin = (B.finals || {})[g.id], final = !!(fin && g.away in fin && g.home in fin);
+  const live = !final && /IN PROGRESS|HALFTIME|END/.test(String(g.status || '').toUpperCase());
+  const A = g.algo || {}, pa = (A.away || {}).pts, ph = (A.home || {}).pts;
+  const lead = final ? (fin[g.away] > fin[g.home] ? g.away : g.home) : pa != null && ph != null ? (pa >= ph ? g.away : g.home) : '';
+  const side = code => `<span class="gt-t${code === lead ? ' lead' : ''}${final && code !== lead ? ' lost' : ''}">${logo(code)}<b>${esc(code)}</b><em>${final ? fin[code] : f1(code === g.away ? pa : ph)}</em></span>`;
+  const tot = pa != null && ph != null ? pa + ph : null;
+  return `<button type="button" class="gt" data-go="g/${esc(g.id)}" aria-label="${esc(g.away)} at ${esc(g.home)}">
+    <span class="gt-bar"><i style="background:${esc(tcolor(g.away))}"></i><i style="background:${esc(tcolor(g.home))}"></i></span>
+    <span class="gt-in">${side(g.away)}${side(g.home)}
+      <span class="gt-st ${final ? 'fin' : live ? 'live' : ''}"><span>${final ? 'Final' : live ? 'Live' : esc(tipCT(g.tip))}</span><span class="gt-pj">${final ? 'final' : 'proj'}</span></span></span>
+    <span class="gt-l"><span class="gt-tv">${tot == null ? 'No projection' : `${final ? 'Projected' : 'Proj'} total <b>${f1(tot)}</b>`}</span></span>
+  </button>`;
+}
+function gameRowD(g) {
+  const A = g.algo || {}, PL = g.player || {}, a = A.away || {}, h = A.home || {}, pa = PL.away || {}, ph = PL.home || {};
+  const fin = (B.finals || {})[g.id];
+  const final = !!(fin && g.away in fin && g.home in fin);
+  const live = !final && /IN PROGRESS|HALFTIME|END/.test(String(g.status || '').toUpperCase());
+  const outs = [g.away, g.home].map(code => {
+    const n = (B.players || []).filter(p => p.team === code && /Out/.test(p.status)).length;
+    return n ? `<span class="gc-out">${esc(code)} ${n} out</span>` : '';
+  }).join('');
+  const wins = [h.win, ph.win].filter(x => x != null), hw = wins.length ? wins.reduce((s, x) => s + x, 0) / wins.length : null;
+  const awP = hw == null ? null : Math.round((1 - hw) * 100);
+  const side = (code, m, home) => `<span class="gc-t${home ? ' r' : ''}"><span class="gc-lg">${bgLogo(code)}</span><span><b>${esc(code)}</b><em>${final ? esc(fin[code]) : f1(m && m.pts)}</em></span></span>`;
+  const mid = `<span class="gc-mid"><b>${final ? 'Final' : live ? 'In progress' : esc(tipCT(g.tip))}</b><small>${h.spread != null ? `${esc(g.home)} ${esc(line(h.spread))} · O/U ${esc(a.ou)}` : 'No line yet'}</small><small class="pj">${final ? '' : 'projected'}</small></span>`;
+  const row = (lab, m, t, cls) => `<span class="gc-ln dash"><span><em><i class="${cls === 'v' ? 'lk v' : 'dot ' + cls}"></i>${lab}</em><b>${esc(m)}</b></span><span class="gc-tv">${t == null || t === '' ? '—' : 'total ' + esc(typeof t === 'number' ? f1(t) : t)}</span></span>`;
+  const vm = vegasMargin(h);
+  return `<div class="grow gcard" role="link" tabindex="0" data-go="g/${esc(g.id)}" aria-label="${esc(g.away)} at ${esc(g.home)}">
+    <div class="gc-hd" style="background:linear-gradient(115deg, ${esc(tcolor(g.away))} 0 50%, ${esc(tcolor(g.home))} 50% 100%)">${side(g.away, a, false)}${mid}${side(g.home, h, true)}</div>
+    <div class="gc-bd">
+      ${awP != null ? `<div class="gc-wp"><span>${esc(g.away)} ${awP}%</span><span>${final ? 'pregame ' : ''}model win chance</span><span>${100 - awP}% ${esc(g.home)}</span></div>
+      <div class="gc-bar"><i style="width:${awP}%;background:${esc(tcolor(g.away))}"></i><i style="background:${esc(tcolor(g.home))}"></i></div>` : ''}
+      <div class="gc-lh">Projected</div>
+      ${row('NBA ALGO', dShort(g, h.margin), a.total, 'a')}${row('PLAYER ALGO', dShort(g, ph.margin), pa.total, 'p')}${vm != null ? row('Vegas', dShort(g, vm), a.ou, 'v') : ''}
+      <div class="gc-ft"><span class="gc-more">Open game ›</span><span>${outs}</span></div>
+    </div>
+  </div>`;
+}
+// one table for the game page: each model's number next to the betting line, no verdicts
+function projTableGame(g) {
+  const A = g.algo || {}, PL = g.player || {}, a = A.away || {}, h = A.home || {}, pa = PL.away || {}, ph = PL.home || {};
+  const vm = vegasMargin(h);
+  const h1m = m => m && m.home && m.home.h1sp != null && m.home.h1ats != null ? m.home.h1ats - m.home.h1sp : null;
+  const h1t = m => m && m.away && m.away.h1ou != null && m.away.h1ouDiff != null ? m.away.h1ou + m.away.h1ouDiff : null;
+  const vh1m = h.h1sp != null && h.h1sp !== '' ? -Number(h.h1sp) : null, vh1t = a.h1ou != null && a.h1ou !== '' ? Number(a.h1ou) : null;
+  const num = v => v == null || v === '' || isNaN(Number(v)) ? '—' : f1(Number(v));
+  const rows = [
+    ['Winner and margin', dShort(g, h.margin), dShort(g, ph.margin), vm != null ? dShort(g, vm) : '—'],
+    ['Game total', num(a.total), num(pa.total), a.ou != null && a.ou !== '' ? esc(a.ou) : '—'],
+    [`${esc(g.away)} points`, num(a.pts), num(pa.pts), num(a.tt)],
+    [`${esc(g.home)} points`, num(h.pts), num(ph.pts), num(h.tt)],
+    ['1st half margin', h1m(g.algo) == null ? '—' : dShort(g, h1m(g.algo)), h1m(g.player) == null ? '—' : dShort(g, h1m(g.player)), vh1m == null ? '—' : dShort(g, vh1m)],
+    ['1st half total', num(h1t(g.algo)), num(h1t(g.player)), vh1t == null ? '—' : f1(vh1t)],
+  ].filter(r => r.slice(1).some(x => x !== '—'));
+  return `<div class="rt-wrap"><table class="rtb ptg"><thead><tr><th class="l"></th><th><i class="dot a"></i>NBA ALGO</th><th><i class="dot p"></i>PLAYER ALGO</th><th><i class="lk v"></i>Vegas</th></tr></thead>
+    <tbody>${rows.map(r => `<tr><td class="l">${r[0]}</td><td>${r[1]}</td><td>${r[2]}</td><td class="mut">${r[3]}</td></tr>`).join('')}</tbody></table></div>`;
+}
+function overviewD(g) {
+  const A = g.algo || {}, PL = g.player || {}, a = A.away || {}, h = A.home || {}, pa = PL.away || {}, ph = PL.home || {};
+  const vm = vegasMargin(h);
+  const read = readBlock(g, a, h, pa, ph, vm, []);
+  return `<div class="ov">
+    ${read}
+    <h3 class="ov-h">Projections next to the line</h3>
+    <p class="sub">NBA ALGO builds each score from team ratings; PLAYER ALGO builds it from the players expected to play. The betting line is here for context.</p>
+    ${projTableGame(g)}
+    ${watchList(g)}
+  </div>`;
+}
+// Props screen and a game's Props tab: projection, line and minutes, sorted by team or player
+function projRow(p) {
+  const pl = BY_ID[p.id] || { name: p.player, team: p.team, id: p.id };
+  const opp = oppTxt(p.team, pl.opp), pj = projIf(p), mins = pl.id ? ifPlays(pl, 'MIN') : null;
+  const act = p.actual !== undefined && p.actual !== '' && p.actual != null ? p.actual : null;
+  return `<button type="button" class="prp pl dash" data-pid="${esc(pl.id)}" data-mkt="${esc(p.market)}" style="--tc:${esc(tcolor(p.team))}">
+    ${hsDot(pl)}${teamMark(p.team)}
+    <span class="pp-pk"><b>${esc(pl.name)}</b><small>${esc(p.market)}${opp ? ' · ' + opp : ''}${p.play != null && p.play < 0.99 && p.play > 0 ? ' · ' + pct(p.play) + ' to play' : ''}</small></span>
+    <span class="pj-n"><b>${pj == null ? '—' : f1(pj)}</b><small>proj</small></span>
+    <span class="pj-n"><b>${p.line == null || p.line === '' ? '—' : esc(p.line)}</b><small>line</small></span>
+    <span class="pj-n"><b>${mins == null ? '—' : Math.round(mins)}</b><small>min</small></span>
+    <span class="pj-n${act == null ? ' mut' : ''}"><b>${act == null ? '—' : esc(act)}</b><small>final</small></span>
+  </button>`;
+}
+function projTable(ps, scope) {
+  const S = PSTATE[scope]; if (!S.sort) S.sort = 'team';
+  const mkl = ['ALL'].concat(['PTS', 'REB', 'AST', '3PM', 'PRA', 'PR', 'PA', 'RA'].filter(m => ps.some(p => mkOf(p) === m)));
+  if (!mkl.includes(S.mkt)) S.mkt = 'ALL';
+  const MO = { PTS: 0, REB: 1, AST: 2, '3PM': 3, PRA: 4, PR: 5, PA: 6, RA: 7 };
+  const nm = p => String((BY_ID[p.id] || {}).name || p.player || '');
+  const list = ps.filter(p => S.mkt === 'ALL' || mkOf(p) === S.mkt).slice().sort(S.sort === 'player'
+    ? (x, y) => nm(x).localeCompare(nm(y)) || (MO[mkOf(x)] ?? 9) - (MO[mkOf(y)] ?? 9)
+    : (x, y) => String(x.team).localeCompare(String(y.team)) || nm(x).localeCompare(nm(y)) || (MO[mkOf(x)] ?? 9) - (MO[mkOf(y)] ?? 9));
+  const cap = scope === 'game' ? 20 : PROP_ROWS, shown = S.more ? list : list.slice(0, cap);
+  const chips = (mkl.length > 2 ? mkl.map(m => `<button type="button" class="chip" data-pmkt="${m}" aria-pressed="${m === S.mkt}">${m === 'ALL' ? 'All' : m}</button>`).join('') : '') +
+    `<span class="seg-s" role="group" aria-label="Sort">${[['team', 'By team'], ['player', 'By player']].map(([k, l]) => `<button type="button" data-psort="${k}" aria-pressed="${k === S.sort}">${l}</button>`).join('')}</span>`;
+  return `<div class="ptable" data-scope="${scope}">
+    <div class="tools" role="group" aria-label="Filter projections">${chips}</div>
+    ${list.length ? `<div class="plist prlist">${shown.map(projRow).join('')}</div>` : `<p class="empty">Nothing matches this filter.</p>`}
+    ${!S.more && list.length > cap ? `<p class="more-row"><button type="button" class="chip" data-pmore="1">Show all ${list.length}</button></p>` : ''}
+  </div>`;
+}
+function renderPropsD() {
+  const ps = B.props || [];
+  if (!ps.length) return `<section id="props"><h2>Player projections</h2><div class="empty"><b>No player lines for this slate yet.</b> They arrive with the morning odds pull.</div></section>`;
+  return `<section id="props"><h2>Player projections</h2>
+    <p class="sub">Tonight's players with a betting line: our projection if he plays, the line for context, and his projected minutes. Tap a player for his card.</p>
+    ${projTable(ps, 'all')}</section>`;
+}
+// masthead + ticker: tonight's slate and last night's finals
+function drawMastD() {
+  const mr = $('#mastrec'), tk = $('#ticker'), games = B.games || [], R = B.rec;
+  const upcoming = games.filter(g => !((B.finals || {})[g.id])).map(g => g.tip).filter(Boolean).sort();
+  const L = R && R.periods && R.periods.last, tp = L && L.tp && L.tp.algo && L.tp.algo[0] ? L.tp.algo[1] / L.tp.algo[0] : null;
+  if (mr) mr.innerHTML = `<div><b>${games.length}</b><small>game${games.length === 1 ? '' : 's'} tonight</small></div><div><b>${upcoming.length ? esc(tipCT(upcoming[0]).replace(' CT', '')) : '—'}</b><small>${upcoming.length ? 'next tip' : 'no more tips'}</small></div><div><b>${tp == null ? '—' : f1(tp)}</b><small>team pts miss last night</small></div>`;
+  if (!tk) return;
+  const items = games.map(g => {
+    const fin = (B.finals || {})[g.id], final = !!(fin && g.away in fin && g.home in fin), live = !final && /IN PROGRESS|HALFTIME|END/.test(String(g.status || '').toUpperCase());
+    return `<button type="button" class="tk-i" data-go="g/${esc(g.id)}">${final ? `<b>${esc(g.away)} ${fin[g.away]} · ${esc(g.home)} ${fin[g.home]}</b><span>Final</span>` : `${live ? '<span class="lv">Live</span>' : ''}<b>${esc(g.away)} @ ${esc(g.home)}</b>${live ? '' : `<span>${esc(tipCT(g.tip).replace(' CT', ''))}</span>`}`}</button>`;
+  });
+  const lg = R && R.lastGames ? R.lastGames : [];
+  if (lg.length) items.push(`<span class="tk-h">Last night</span>` + lg.map(x => `<span class="tk-i"><b>${esc(x[1])} ${esc(x[5])} · ${esc(x[2])} ${esc(x[6])}</b><span>proj ${f1(x[3])}–${f1(x[4])}</span></span>`).join(''));
+  tk.innerHTML = items.length ? `<div class="tk-track">${items.join('')}<span class="tk-gap"></span>${items.join('')}<span class="tk-gap"></span></div>` : '';
+  tk.hidden = !items.length;
+  const track = tk.querySelector('.tk-track');
+  if (track) track.style.setProperty('--dur', Math.max(25, Math.round((track.scrollWidth / 2) / 45)) + 's');
+}
+// Record → How the projections did
+function renderAccuracyPage() {
+  const R = B.rec;
+  if (!R || R.error || !R.lastDay) return `<section id="record"><h2>How the projections did</h2><div class="empty"><b>${R && R.error ? 'This page could not be built: ' + esc(R.error) : 'Nothing graded yet.'}</b> Projections are checked against the box scores each morning.</div></section>`;
+  const P = R.periods[recPer] || R.periods.season;
+  const perLabel = { season: 'the whole season', d7: 'the last 7 game days', last: 'last night (' + R.lastDay.slice(5).replace('-', '/') + ')' }[recPer];
+  const avg = v => v && v[0] ? v[1] / v[0] : null;
+  const pl = P.pl || {}, tp = P.tp || {}, wp = P.wp || {}, pj = P.pj || {};
+  const plPts = pl.PTS, ourPts = plPts ? plPts[1] / plPts[0] : null, linePts = plPts ? plPts[2] / plPts[0] : null;
+  const tA = avg(tp.algo), tV = avg(tp.market), mn = avg(pj.MIN), wA = avg(wp.algo), wV = avg(wp.market);
+  const vs = (ours, theirs, lower) => ours == null || theirs == null ? '' : Math.abs(ours - theirs) < (lower ? 0.05 : 0.005) ? (lower ? 'same as the line' : 'same as the favorite')
+    : (lower ? ours < theirs : ours > theirs) ? `<span class="pos">${lower ? 'closer than the line' : 'ahead of the favorite'}</span>` : `<span class="neg">${lower ? 'line was closer' : 'favorite did better'}</span>`;
+  const metric = (lab, big, sub) => `<div class="am"><small>${lab}</small><b>${big}</b><em>${sub}</em></div>`;
+  const metrics = `<div class="am-grid">
+    ${metric('Player points miss', ourPts == null ? '—' : f1(ourPts), linePts == null ? 'no lines yet' : `line misses by ${f1(linePts)} · ${vs(ourPts, linePts, true)}`)}
+    ${metric('Team points miss', tA == null ? '—' : f1(tA), tV == null ? 'NBA ALGO, per team' : `line misses by ${f1(tV)} · ${vs(tA, tV, true)}`)}
+    ${metric('Minutes miss', mn == null ? '—' : f1(mn), 'per player who played')}
+    ${metric('Winners picked', wA == null ? '—' : pct(wA), wV == null ? 'NBA ALGO, straight up' : `Vegas favorite ${pct(wV)} · ${vs(wA, wV, false)}`)}
+  </div>`;
+  const tbl = (head, rows) => `<div class="rt-wrap"><table class="rtb"><thead><tr>${head.map((h, i) => `<th${i ? '' : ' class="l"'}>${h}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table></div>`;
+  const card = (title, sub, body) => `<div class="rcard"><h3>${title}</h3>${sub ? `<p class="rq">${sub}</p>` : ''}${body}</div>`;
+  const plRows = [['PTS', 'Points'], ['REB', 'Rebounds'], ['AST', 'Assists'], ['3PM', 'Threes'], ['PRA', 'Pts + reb + ast']].filter(([k]) => pl[k] && pl[k][0]).map(([k, n]) => {
+    const v = pl[k], o = v[1] / v[0], l = v[2] / v[0];
+    return `<tr><td class="l">${n}</td><td><b>${f1(o)}</b></td><td>${f1(l)}</td><td class="${Math.abs(o - l) < 0.05 ? 'mut' : o < l ? 'pos' : 'neg'}">${Math.abs(o - l) < 0.05 ? 'even' : o < l ? 'ours' : 'line'}</td><td class="mut">${v[0]}</td></tr>`; });
+  const tpS = [['algo', 'NBA ALGO', 'a'], ['player', 'PLAYER ALGO', 'p'], ['market', 'Vegas', 'gray']].filter(([k]) => tp[k] && tp[k][0]).map(([k, n, c]) => [n, c, tp[k][1] / tp[k][0], tp[k][0]]);
+  const tpMax = Math.max(1, ...tpS.map(x => x[2]));
+  const tpRows = tpS.sort((a, b) => a[2] - b[2]).map(([n, c, m, cnt]) => recBar(n, m / tpMax, null, `${f1(m)} off`, c, cnt)).join('');
+  const wpS = [['algo', 'NBA ALGO', 'a'], ['player', 'PLAYER ALGO', 'p'], ['market', 'Vegas favorite', 'gray']].filter(([k]) => wp[k] && wp[k][0]).map(([k, n, c]) => recBar(n, wp[k][1] / wp[k][0], null, `${pct(wp[k][1] / wp[k][0])} <small class="mut">${wp[k][1]}–${wp[k][0] - wp[k][1]}</small>`, c, wp[k][0])).join('');
+  const pjRows = [['MIN', 'Minutes'], ['PTS', 'Points'], ['REB', 'Rebounds'], ['AST', 'Assists'], ['3PM', 'Threes']].filter(([k]) => pj[k] && pj[k][0]).map(([k, n]) => {
+    const v = pj[k], o = v[1] / v[0], b = v[2] ? v[3] / v[2] : null, bias = v[4] != null ? v[4] / v[0] : null;
+    const lean = bias == null ? '—' : Math.abs(bias) < (k === 'PTS' || k === 'MIN' ? 0.25 : 0.08) ? '<span class="mut">even</span>' : `${f1(Math.abs(bias))} ${bias > 0 ? 'high' : 'low'}`;
+    return `<tr><td class="l">${n}</td><td><b>${f1(o)}</b></td><td class="${b == null ? 'mut' : ''}">${b == null ? '—' : f1(b)}</td><td>${lean}</td><td class="mut">${v[0]}</td></tr>`; });
+  const lg = R.lastGames || [];
+  const lgRows = lg.map(x => { const pm = x[4] - x[3], am = x[6] - x[5], tie = Math.abs(pm) < 0.05, right = (pm > 0) === (am > 0);
+    const miss = (Math.abs(x[3] - x[5]) + Math.abs(x[4] - x[6])) / 2;
+    return `<tr><td class="l">${esc(x[1])} @ ${esc(x[2])}</td><td>${f1(x[3])}–${f1(x[4])}</td><td><b>${esc(x[5])}–${esc(x[6])}</b></td><td class="${tie ? 'mut' : right ? 'pos' : 'neg'}">${tie ? 'even' : right ? '✓' : '✗'}</td><td>${f1(miss)}</td></tr>`; });
+  return `<section id="record"><h2>How the projections did</h2>
+    <p class="sub">How close our numbers landed to what actually happened, with the betting line as the yardstick. Nothing here is a pick.</p>
+    <div class="tools"><span class="seg-s" role="group" aria-label="Period">${[['season', 'Season'], ['d7', 'Last 7 days'], ['last', 'Last night']].map(([k, n]) => `<button type="button" data-recper="${k}" aria-pressed="${k === recPer}">${n}</button>`).join('')}</span><span class="muted-s">Showing ${perLabel}.</span></div>
+    ${metrics}
+    <div class="rgrid">
+      ${card('Player stats: our projection vs the line', 'Average distance from what the player did, for every player with a line. “Closer” says whose number landed nearer.',
+        plRows.length ? tbl(['Stat', 'Ours', 'Line', 'Closer', 'Players'], plRows) : '<p class="muted">No graded player lines in this period.</p>')}
+      ${card('Team points: which number lands closest', 'Average miss per team, each model against the betting line’s implied team total.', tpRows || '<p class="muted">No graded games in this period.</p>')}
+      ${card('Winners picked straight up', 'How often the team each model projected to win did win, next to the betting favorite.', wpS || '<p class="muted">No graded games in this period.</p>')}
+      ${card('Player projections when he played', 'Average miss for every projected player who played, against a simple baseline (last season’s minutes × his per-minute rate). “Runs” = whether we tend to project high or low.',
+        pjRows.length ? tbl(['Stat', 'Our miss', 'Baseline', 'Runs', 'Players'], pjRows) : '<p class="muted">No graded players in this period.</p>')}
+    </div>
+    ${lgRows.length ? card(`Last night’s games (${R.lastDay.slice(5).replace('-', '/')})`, 'NBA ALGO’s projected score next to the final. ✓ = picked the winner. “Miss” = average points off per team.', tbl(['Game', 'Projected', 'Final', 'Winner', 'Miss'], lgRows)) : ''}
+  </section>`;
+}
+
 /* ---------- 10-27b: top edges each night, props by game, what's hitting ---------- */
 const PG_MK_L = [['ALL', 'All'], ['ML', 'ML'], ['SPREAD', 'Spread'], ['GAME TOTAL', 'Total'], ['TEAM TOTAL', 'Team total'], ['1H', '1H']];
 const clvMark = c => c === 'B' ? '<span class="cv b" title="Beat the closing line">▲</span>' : c === 'W' ? '<span class="cv w" title="Worse than the closing line">▼</span>' : c === 'S' ? '<span class="cv s" title="Same as the close">=</span>' : '';
@@ -616,6 +805,7 @@ function callNums(c) {
 }
 const bigEdgeOf = () => recPricing === 'rp' && B && B.rec && B.rec.rp && B.rec.rp.has ? B.rec.rp.big || 0.02 : (B && B.propFlag) || 0.03;
 function renderRecordPage() {
+  if (DASH) return renderAccuracyPage();
   const R = B.rec;
   const howto = `<h2 class="h2b">Reading The Slate</h2>
     <div class="howto">
@@ -905,7 +1095,7 @@ function renderGame(g) {
 }
 
 /* ---------- game page: banner, the four-way switch, one tab at a time ---------- */
-const GAME_TABS = [['overview', 'Overview', 'Overview'], ['matchup', 'Matchup', 'Matchup'], ['props', 'Props', 'Props'], ['rot', 'Rotations', 'Rotations']];
+const GAME_TABS = [['overview', 'Overview', 'Overview'], ['matchup', 'Matchup', 'Matchup'], ['props', 'Projections', 'Proj'], ['rot', 'Rotations', 'Rotations']];
 const gameProps = g => (B.props || []).filter(p => p.team === g.away || p.team === g.home);
 function renderGamePage(g, tab) {
   const A = g.algo || {}, a = A.away || {}, h = A.home || {};
@@ -927,7 +1117,7 @@ function gameTab(g, tab) {
   if (tab === 'props') {
     const ps = gameProps(g);
     if (!ps.length) return `<p class="empty pad">No prop lines for these two teams yet. They arrive with the morning odds pull.</p>`;
-    return `<div class="pad">${propTable(ps, 'game')}</div>`;
+    return `<div class="pad">${DASH ? projTable(ps, 'game') : propTable(ps, 'game')}</div>`;
   }
   if (tab === 'rot') return `<div class="detail">${rotation(g.away)}${rotation(g.home)}</div>`;
   if (tab === 'matchup') return matchupTab(g);
@@ -938,6 +1128,7 @@ function gameTab(g, tab) {
 const fav = (g, M) => M == null ? '—' : Math.abs(M) < 0.05 ? 'Pick’em' : `${M > 0 ? g.home : g.away} −${Math.abs(M).toFixed(1).replace(/\.0$/, '')}`;
 const byTxt = (g, M) => M == null ? '—' : Math.abs(M) < 0.05 ? 'a tie' : `${M > 0 ? g.home : g.away} by ${Math.abs(M).toFixed(1)}`;
 function overview(g) {
+  if (DASH) return overviewD(g);
   const A = g.algo || {}, PL = g.player || {}, a = A.away || {}, h = A.home || {}, pa = PL.away || {}, ph = PL.home || {};
   const calls = gameCalls(g), live = calls.filter(c => !c.pass);
   const vm = h.spread != null ? -h.spread : null;
@@ -975,12 +1166,18 @@ function readBlock(g, a, h, pa, ph, vm, live) {
   const both = live.filter(c => c.both), one = live.filter(c => !c.both);
   const kid = c => 'mk-' + (c.kind === 'tt' ? 'tt-' + c.where : c.kind);
   const chip = c => `<button type="button" class="rd-chip${c.both ? '' : ' one'}" data-mkgo="${esc(kid(c))}"><em>${esc(KIND_SHORT[c.kind])}</em>${esc(c.bet)}${c.both ? '' : `<small>${c.model === 'NBA ALGO' ? 'NBA' : 'PLAYER'}</small>`}</button>`;
-  const tiles = `<div class="rd-tiles">
+  const wh = h.win, wa = a.win, fw = wh != null && wa != null && wa + wh > 0 ? (wh >= wa ? [g.home, wh / (wa + wh)] : [g.away, wa / (wa + wh)]) : null;
+  const tilesD = `<div class="rd-tiles">
+      <div class="rd-tile"><small>Who wins</small><b>${esc(winBig)}</b><em>${esc(winSub)}</em>${row('a', 'NBA: ' + esc(byWord(g, mA)))}${row('p', 'PLAYER: ' + esc(byWord(g, mP)))}${vm != null ? row('v', 'Vegas: ' + esc(byWord(g, vm))) : ''}</div>
+      <div class="rd-tile"><small>Projected total</small><b>${tA != null && tP != null ? f1((tA + tP) / 2) : tA != null ? f1(tA) : '—'}</b><em>average of the two models</em>${row('a', 'NBA: ' + f1(tA))}${row('p', 'PLAYER: ' + f1(tP))}${ou != null ? row('v', 'Vegas: ' + esc(ou)) : ''}</div>
+      <div class="rd-tile"><small>Win chance</small><b>${fw ? esc(fw[0]) + ' ' + pct(fw[1]) : '—'}</b><em>NBA ALGO, pregame</em>${row('a', esc(g.away) + ' ' + (fw ? pct(wa / (wa + wh)) : '—'))}${row('a', esc(g.home) + ' ' + (fw ? pct(wh / (wa + wh)) : '—'))}</div>
+    </div>`;
+  const tiles = DASH ? tilesD : `<div class="rd-tiles">
       <div class="rd-tile"><small>Who wins</small><b>${esc(winBig)}</b><em>${esc(winSub)}</em>${row('a', 'NBA: ' + esc(byWord(g, mA)))}${row('p', 'PLAYER: ' + esc(byWord(g, mP)))}${vm != null ? row('v', 'Vegas: ' + esc(byWord(g, vm))) : ''}</div>
       <div class="rd-tile"><small>Total vs Vegas</small><b>${esc(totBig)}</b><em>${ou != null ? 'Vegas ' + esc(ou) : 'no line yet'}</em>${row('a', 'NBA: ' + f1(tA))}${row('p', 'PLAYER: ' + f1(tP))}${ou != null ? row('v', 'Vegas: ' + esc(ou)) : ''}</div>
       <div class="rd-tile fl${both.length ? '' : ' none'}"><small>Both models flag</small><b>${both.length ? both.length + (both.length === 1 ? ' pick' : ' picks') : 'Nothing'}</b><em>${both.length ? 'tap one for its card' : `nothing clears ${pct(P().flag)} with both`}</em>${one.length ? `<span class="rd-l">+ ${one.length} from one model only</span>` : ''}</div>
     </div>`;
-  const chips = live.length ? `<div class="rd-chips">${both.map(chip).join('')}${one.map(chip).join('')}</div>` : '';
+  const chips = !DASH && live.length ? `<div class="rd-chips">${both.map(chip).join('')}${one.map(chip).join('')}</div>` : '';
   // injuries by team, plus the other notes (stacked roster, back-to-back)
   const notes = [];
   const inj = [g.away, g.home].map(code => {
@@ -1120,7 +1317,7 @@ function watchList(g) {
     const ps = (B.players || []).filter(p => p.team === code && p.expMin > 0).sort((x, y) => (y.pts || 0) - (x.pts || 0)).slice(0, 4);
     if (!ps.length) return '';
     return `<div class="wl"><h4 style="background:${esc(tcolor(code))}"><span class="wl-lg">${bgLogo(code)}</span>${esc(team(code).name || code)}</h4>${ps.map(p => {
-      const pr = bestPropOf(p);
+      const pr = DASH ? null : bestPropOf(p);
       const a = final ? actOf(p) : null, dnp = final && !a;
       const stat = (k, K, lab, close) => final
         ? `<span class="pr-st"><b class="${dnp ? '' : tone(a[k], p[k], close)}">${dnp ? '–' : Math.round(a[k])}</b><small>${lab} · ${f1(p[k])}</small></span>`
@@ -1134,7 +1331,7 @@ function watchList(g) {
     }).join('')}</div>`;
   };
   return final
-    ? `<div class="ov-sec"><h3 class="ov-h">How they did</h3><p class="sub">The same players we picked to watch. Big number = what he did, small = what we projected. <span class="hi">Green</span> beat the projection, <span class="lo">red</span> fell short. The tag is his best prop edge and how it went.</p><div class="wl-grid">${col(g.away)}${col(g.home)}</div></div>`
+    ? `<div class="ov-sec"><h3 class="ov-h">How they did</h3><p class="sub">The same players we picked to watch. Big number = what he did, small = what we projected. <span class="hi">Green</span> beat the projection, <span class="lo">red</span> fell short.${DASH ? '' : ' The tag is his best prop edge and how it went.'}</p><div class="wl-grid">${col(g.away)}${col(g.home)}</div></div>`
     : `<div class="ov-sec"><h3 class="ov-h">Players to watch</h3><p class="sub">Top projected scorers. <span class="mu up">▲</span> / <span class="mu dn">▼</span> under a stat: an easier / tougher matchup for his position (already in the number). Tap a player for his card.</p><div class="wl-grid">${col(g.away)}${col(g.home)}</div></div>`;
 }
 
@@ -1206,7 +1403,7 @@ function matchupTab(g) {
   const anyFb = sides.some(s => s.rows.some(x => x.o.fb || x.d.fb));
   const panel = s => `<div class="hh">
       <h4>${logo(s.O)}${esc(s.O)} offense <span class="vs">vs</span> ${esc(s.D)} defense</h4>
-      <div class="hh-row hh-headrow"><span></span><span>${esc(s.O)} gets</span><span>${esc(s.D)} allows</span><span>Edge</span></div>
+      <div class="hh-row hh-headrow"><span></span><span>${esc(s.O)} gets</span><span>${esc(s.D)} allows</span><span>${DASH ? 'Advantage' : 'Edge'}</span></div>
       ${s.rows.map(x => `<div class="hh-row">
         <span class="hh-stat">${esc(x.st.name)}</span>
         <span class="hh-v"><b>${fmtT(x.st, x.o.v)}${x.o.fb ? '*' : ''}</b><small>${ordn(x.ro)} of 30</small></span>
@@ -1216,9 +1413,9 @@ function matchupTab(g) {
   return `<div class="ov">
     <div class="ov-hrow"><h3 class="ov-h">How they match up</h3><span class="ov-ctl"><small>Stats over</small>${winSwitch('data-twin')}</span></div>
     <p class="sub">Each team's offense against the other team's defense, per game, ${esc(seasonLabel())}. A rank of 1st is the best in the league: the most points scored, or the fewest allowed.</p>
-    ${big.length ? `<div class="keyedges"><h4>Biggest edges</h4><ul>${big.map(edgeSentence).join('')}</ul></div>` : `<div class="keyedges"><h4>Biggest edges</h4><p class="muted">No stat where either side is more than 3% better than average. An evenly matched game on paper.</p></div>`}
+    ${big.length ? `<div class="keyedges"><h4>${DASH ? 'Biggest mismatches' : 'Biggest edges'}</h4><ul>${big.map(edgeSentence).join('')}</ul></div>` : `<div class="keyedges"><h4>${DASH ? 'Biggest mismatches' : 'Biggest edges'}</h4><p class="muted">No stat where either side is more than 3% better than average. An evenly matched game on paper.</p></div>`}
     <div class="tt-grid">${sides.map(panel).join('')}</div>
-    <p class="mk-key em-key"><span class="em em-demo"><span class="em-track"><span class="em-fill l" style="right:50%;width:30%;background:var(--ink-3)"></span><span class="em-mid"></span><span class="em-fill r" style="left:50%;width:18%;background:var(--ink-2)"></span></span></span><span>The bar grows toward whoever has the edge: left for the defense, right for the offense. Full length = 12% better than league average. Hover or tap a bar for the expected number.${anyFb ? ' * = season figure (last season\'s tabs only split points by recent games).' : ''}</span></p>
+    <p class="mk-key em-key"><span class="em em-demo"><span class="em-track"><span class="em-fill l" style="right:50%;width:30%;background:var(--ink-3)"></span><span class="em-mid"></span><span class="em-fill r" style="left:50%;width:18%;background:var(--ink-2)"></span></span></span><span>The bar grows toward whoever has the ${DASH ? 'advantage' : 'edge'}: left for the defense, right for the offense. Full length = 12% better than league average. Hover or tap a bar for the expected number.${anyFb ? ' * = season figure (last season\'s tabs only split points by recent games).' : ''}</span></p>
     <h3 class="ov-h">Who they face by position</h3>
     <p class="sub">How each defense has done against guards, forwards and centers (${DVP_WHEN}), compared with league average. <span class="dvchip soft">+8%</span> means it gave up 8% more than average to that position, which is good for the scorer; <span class="dvchip tough">−8%</span> means 8% less.</p>
     <div class="pm-grid">${posMatch(g.away, g.home)}${posMatch(g.home, g.away)}</div>
@@ -1382,6 +1579,7 @@ function formFor(p, k) {
 /* ---------- Today: the lean cards, then one slim row per game ---------- */
 const KIND_SHORT = { spread: 'Spread', ml: 'ML', total: 'Total', tt: 'Team total', h1spread: '1H spread', h1total: '1H total' };
 function gameRow(g) {   // a mini version of the game header: team colors, projected (or final) score, win chance, the leans
+  if (DASH) return gameRowD(g);
   const A = g.algo || {}, PL = g.player || {}, a = A.away || {}, h = A.home || {}, ph = PL.home || {};
   const fin = (B.finals || {})[g.id], logged = (B.logged || {})[g.id];
   const final = !!(fin && g.away in fin && g.home in fin);
@@ -1411,6 +1609,7 @@ function gameRow(g) {   // a mini version of the game header: team colors, proje
 }
 // scoreboard strip at the top of Today: every game one tap away, with its score or tip time and the model's top lean
 function gameTile(g) {
+  if (DASH) return gameTileD(g);
   const fin = (B.finals || {})[g.id], final = !!(fin && g.away in fin && g.home in fin);
   const live = !final && /IN PROGRESS|HALFTIME|END/.test(String(g.status || '').toUpperCase());
   const A = g.algo || {}, pa = (A.away || {}).pts, ph = (A.home || {}).pts;
@@ -1429,9 +1628,9 @@ function renderToday() {
   const games = B.games || [];
   if (!games.length) return `<section><div class="empty"><b>No games on this date.</b> The page follows the date in SLATE B8; the morning job moves it to the next game day.</div></section>`;
   return `<nav class="gstrip" aria-label="Today's games">${games.map(gameTile).join('')}</nav>
-    ${renderSpots()}
+    ${DASH ? '' : renderSpots()}
     <section id="board"><h2>Games</h2>
-      <p class="sub">Tap a game for its lines, team totals and 1st half, props and rotations.</p>
+      <p class="sub">${DASH ? 'Tap a game for its projections, matchup, player projections and rotations.' : 'Tap a game for its lines, team totals and 1st half, props and rotations.'}</p>
       <div class="slate">${games.map(gameRow).join('')}</div>
     </section>`;
 }
@@ -1485,14 +1684,15 @@ function banner(g, a, h, fin, logged) {
   const awayPct = hasWin ? Math.round(100 * wa / (wa + wh)) : 0;   // the two sides always add to 100
   const win = hasWin ? `<div class="bn-win"><div class="bn-wt"><span>${esc(g.away)} ${awayPct}%</span><span>model win chance</span><span>${100 - awayPct}% ${esc(g.home)}</span></div>
       <div class="bn-wp"><i style="width:${(100 * wa / (wa + wh)).toFixed(1)}%;background:${esc(tcolor(g.away))}"></i><i style="flex:1;background:${esc(tcolor(g.home))}"></i></div></div>` : '<div></div>';
-  const badge = final ? `<span class="bn-lock fin">Final${lockedAt ? ' · graded' : ''}</span>`
+  const badge = DASH ? (final ? '<span class="bn-lock fin">Final</span>' : live ? '<span class="bn-lock open">In progress</span>' : `<span class="bn-lock open">Tip ${esc(tipCT(g.tip))}</span>`)
+    : final ? `<span class="bn-lock fin">Final${lockedAt ? ' · graded' : ''}</span>`
     : lockedAt ? `<button type="button" class="bn-lock" data-lockinfo title="What does locked mean?">Locked ${esc(ctTime(lockedAt))}</button>`
     : live ? `<span class="bn-lock open">In progress</span>`
     : `<span class="bn-lock open">Locks about an hour before tip</span>`;
   return `<div class="bn">
     <div class="bn-top">${half(g.away, a, false)}${half(g.home, h, true)}<div class="bn-pill">${pill}</div></div>
     <div class="bn-tape"><div class="bn-chips">${chips}</div>${win}<div class="bn-right">${badge}</div></div>
-    ${lockedAt && !final ? `<p class="bn-note" hidden>These are the pregame numbers that were tracked at ${esc(ctTime(lockedAt))} and get graded. The sheet's live tabs keep moving after the lock, so they won't match this page.</p>` : ''}
+    ${!DASH && lockedAt && !final ? `<p class="bn-note" hidden>These are the pregame numbers that were tracked at ${esc(ctTime(lockedAt))} and get graded. The sheet's live tabs keep moving after the lock, so they won't match this page.</p>` : ''}
   </div>`;
 }
 /* one plain line per game: what to do with the spread, moneyline and total */
@@ -1580,9 +1780,9 @@ function rotation(code) {
 /* ---------- players ---------- */
 /* players as stat lines: headshot, minutes, tonight's numbers with a matchup arrow under each, and his best prop */
 const bestPropOf = p => (B.props || []).filter(x => x.id === p.id && !x.guard && x.edge != null).sort((x, y) => y.edge - x.edge)[0] || null;
-const PSORT = [['expMin', 'Min'], ['pts', 'Pts'], ['reb', 'Reb'], ['ast', 'Ast'], ['tpm', '3PM'], ['bp', 'Best prop']];
+const PSORT = [['expMin', 'Min'], ['pts', 'Pts'], ['reb', 'Reb'], ['ast', 'Ast'], ['tpm', '3PM'], ['bp', DASH ? 'PRA' : 'Best prop']];
 let plDir = 'desc';
-const plVal = (p, k) => { if (k !== 'bp') return p[k]; const b = bestPropOf(p); return b ? b.edge : null; };
+const plVal = (p, k) => { if (k !== 'bp') return p[k]; if (DASH) return (p.pts || 0) + (p.reb || 0) + (p.ast || 0); const b = bestPropOf(p); return b ? b.edge : null; };
 function playerRows(list) {
   if (!list.length) return '<div class="empty">No players to show.</div>';
   const mu = (p, k) => { const m = posMult(p, k); if (m == null) return '';
@@ -1591,14 +1791,14 @@ function playerRows(list) {
   const arrow = k => k === sortKey ? (plDir === 'desc' ? ' ▼' : ' ▲') : '';
   const head = `<div class="prow ph" role="group" aria-label="Sort players"><i></i><span></span><span></span><span class="ph-n">Player</span>${PSORT.map(([k, n]) => `<button type="button" class="ph-s${k === sortKey ? ' on' : ''}${k === 'bp' ? ' bp' : ''}" data-psort="${k}">${n}${arrow(k)}</button>`).join('')}</div>`;
   return `<div class="plist">${head}${list.map(p => {
-    const st = showStatus(p.status), best = bestPropOf(p);
+    const st = showStatus(p.status), best = DASH ? null : bestPropOf(p);
     const stat = (k, f, lab) => `<span class="pr-st"><b>${f1(p[f])}</b><small>${lab}${mu(p, k)}</small></span>`;
     return `<button type="button" class="prow pl" data-pid="${esc(p.id)}"${best ? ` data-mkt="${esc(best.market)}"` : ''} style="--tc:${esc(tcolor(p.team))}">
       <i class="pr-e"></i>${hsDot(p)}${teamMark(p.team)}
       <span class="pr-nm"><b>${esc(p.name)}</b><small>${esc(p.pos)} · ${oppTxt(p.team, p.opp)}</small>
         <span class="pr-tags">${st ? `<span class="st ${stCls(p.status)}">${esc(p.status)}${p.play != null && p.play < 0.99 ? ' · ' + pct(p.play) : ''}</span>` : ''}<span class="cf conf-${esc(p.conf.split(' ')[0])}">${esc(p.conf.split(' ')[0])} confidence</span></span></span>
       <span class="pr-st mn"><b>${f1(p.expMin)}</b><small>min</small></span>${stat('PTS', 'pts', 'pts')}${stat('REB', 'reb', 'reb')}${stat('AST', 'ast', 'ast')}${stat('3PM', 'tpm', '3pm')}
-      <span class="pr-bp">${best ? `<small>best prop</small><span class="bpc${best.flagged ? ' fl' : ''}">${esc(best.side === 'Over' ? 'O' : 'U')} ${esc(best.line)} ${esc(best.market)} <em>${sgn(best.edge * 100, 1)}%</em></span>` : '<small>no prop line</small>'}</span>
+      <span class="pr-bp">${DASH ? `<small>pts + reb + ast</small><span class="bpc">${f1((p.pts || 0) + (p.reb || 0) + (p.ast || 0))}</span>` : best ? `<small>best prop</small><span class="bpc${best.flagged ? ' fl' : ''}">${esc(best.side === 'Over' ? 'O' : 'U')} ${esc(best.line)} ${esc(best.market)} <em>${sgn(best.edge * 100, 1)}%</em></span>` : '<small>no prop line</small>'}</span>
     </button>`; }).join('')}</div>`;
 }
 function renderPlayers() {
@@ -1617,7 +1817,7 @@ function renderPlayers() {
       <span><i class="cf conf-Low">Low</i>something is shaky: a rookie projected from his draft slot, a new team or role the minutes model can't read yet, or a failed data check</span></div>
     <div class="tools">${chips}
       <label class="sort-dd">Sort by <select id="sort">
-        ${[['pts', 'Points'], ['reb', 'Rebounds'], ['ast', 'Assists'], ['tpm', 'Threes'], ['expMin', 'Minutes'], ['bp', 'Best prop edge']].map(([k, n]) => `<option value="${k}" ${k === sortKey ? 'selected' : ''}>${n}</option>`).join('')}
+        ${[['pts', 'Points'], ['reb', 'Rebounds'], ['ast', 'Assists'], ['tpm', 'Threes'], ['expMin', 'Minutes'], ['bp', DASH ? 'Pts + reb + ast' : 'Best prop edge']].map(([k, n]) => `<option value="${k}" ${k === sortKey ? 'selected' : ''}>${n}</option>`).join('')}
       </select></label>
     </div>
     <div class="tools"><span class="seg-s" role="group" aria-label="View">${[['tonight', 'Tonight'], ['form', 'Form']].map(([k, n]) => `<button type="button" data-plview="${k}" aria-pressed="${k === plView}">${n}</button>`).join('')}</span>
@@ -1649,7 +1849,7 @@ function mlLine(model, ln) {
   const pad = Math.max(0.6, Math.abs(model - ln) * 0.45), lo = Math.min(model, ln) - pad, hi = Math.max(model, ln) + pad;
   const X = v => ((v - lo) / (hi - lo) * 100).toFixed(1) + '%';
   return `<span class="mln"><span class="mln-t"><i style="left:${X(Math.min(model, ln))};width:calc(${X(Math.max(model, ln))} - ${X(Math.min(model, ln))})"></i><em class="l" style="left:${X(ln)}"></em><em class="m" style="left:${X(model)}"></em></span>
-    <span class="mln-k">${model <= ln ? `<span>model <b>${f1(model)}</b></span><span>line <b>${ln}</b></span>` : `<span>line <b>${ln}</b></span><span>model <b>${f1(model)}</b></span>`}</span></span>`;
+    <span class="mln-k">${model <= ln ? `<span>${DASH ? 'proj' : 'model'} <b>${f1(model)}</b></span><span>line <b>${ln}</b></span>` : `<span>line <b>${ln}</b></span><span>${DASH ? 'proj' : 'model'} <b>${f1(model)}</b></span>`}</span></span>`;
 }
 // one prop as a row; rank → the big ranked style used for the top picks
 function propRow(p, rank) {
@@ -1670,6 +1870,7 @@ function propRow(p, rank) {
   </button>`;
 }
 function renderProps() {
+  if (DASH) return renderPropsD();
   const ps = B.props || [];
   if (!ps.length) return `
   <section id="props"><h2>Props</h2>
@@ -1709,9 +1910,10 @@ function wirePropTables() {
     if (b.dataset.pmkt) { S.mkt = b.dataset.pmkt; S.more = false; }
     else if (b.dataset.pside) { S.side = b.dataset.pside; S.more = false; }
     else if (b.dataset.pmore) S.more = true;
+    else if (b.dataset.psort) { S.sort = b.dataset.psort; S.more = false; }
     else return;
     const ps = scope === 'game' ? gameProps((B.games || []).find(g => g.id === VIEW.id) || {}) : (B.props || []);
-    box.outerHTML = propTable(ps, scope);
+    box.outerHTML = DASH ? projTable(ps, scope) : propTable(ps, scope);
     wirePropTables();
   });
 }
@@ -1802,7 +2004,7 @@ function openCard(id, market) {
     cf ? `<span class="pc-tag cf-${esc(cf)}" title="${esc(p.conf)}">${esc(cf)} confidence</span>` : '',
     p.play != null && p.play < 0.99 ? `<span class="pc-tag q">${pct(p.play)} to play</span>` : '',
     st ? `<span class="pc-tag ${/Out/.test(st) ? 'out' : /Questionable|Doubtful/.test(st) ? 'q' : ''}">${esc(st)}</span>` : '',
-    bp && bp.edge > 0 ? `<button type="button" class="pc-tag bp" data-stat="${esc(mk(bp))}" title="His biggest prop edge tonight">Best prop <b>${esc(bp.side)} ${esc(bp.line)} ${esc(bp.market)}</b> ${sgn(bp.edge * 100, 1)}%</button>` : '',
+    !DASH && bp && bp.edge > 0 ? `<button type="button" class="pc-tag bp" data-stat="${esc(mk(bp))}" title="His biggest prop edge tonight">Best prop <b>${esc(bp.side)} ${esc(bp.line)} ${esc(bp.market)}</b> ${sgn(bp.edge * 100, 1)}%</button>` : '',
   ].filter(Boolean).join('');
   $('#card').innerHTML = `
     <div class="hd" style="background:${heroBg(p.team)}">
@@ -1838,13 +2040,24 @@ function drawStat() {
   // stat tiles: tonight's number if he plays, with the line (or last season) underneath; tapping one picks the stat
   document.querySelector('#card .tiles').innerHTML = stats.map(s => {
     const pr = propFor(p, s.k), ls = lastSeason(p, s.k);
-    return `<button type="button" data-stat="${s.k}" aria-pressed="${s.k === k}"${pr && pr.flagged ? ' class="fl"' : ''}><b>${fmtStat(s.k, ifPlays(p, s.k))}</b><span>${s.k === '3PM' ? '3PM' : s.k.length > 3 ? s.k : s.k.toLowerCase()}</span><i>${pr && pr.line != null ? 'line ' + esc(pr.line) : ls != null ? fmtStat(s.k, ls) + ' last szn' : '&nbsp;'}</i></button>`;
+    return `<button type="button" data-stat="${s.k}" aria-pressed="${s.k === k}"${!DASH && pr && pr.flagged ? ' class="fl"' : ''}><b>${fmtStat(s.k, ifPlays(p, s.k))}</b><span>${s.k === '3PM' ? '3PM' : s.k.length > 3 ? s.k : s.k.toLowerCase()}</span><i>${pr && pr.line != null ? 'line ' + esc(pr.line) : ls != null ? fmtStat(s.k, ls) + ' last szn' : '&nbsp;'}</i></button>`;
   }).join('');
 
   // the prop: the pick, model vs line, chance vs break-even, the edge dial
   const proj = ifPlays(p, k), rg = statRange(p, k), prop = propFor(p, k), ls = lastSeason(p, k);
   let propSec = '';
-  if (prop) {
+  if (prop && DASH) {
+    const oddsTxt = [prop.overOdds !== '' && prop.overOdds != null ? 'O ' + prop.overOdds : '', prop.underOdds !== '' && prop.underOdds != null ? 'U ' + prop.underOdds : ''].filter(Boolean).join(' · ');
+    const act = prop.actual !== undefined && prop.actual !== '' && prop.actual != null ? prop.actual : null;
+    propSec = `<section class="pc-sec pc-prop dash">
+      <h4 class="pc-h">Tonight's line <small>${esc(S.name)}</small></h4>
+      <div class="pc-pg dash">
+        <div class="pc-pk"><small>Betting line</small><b>${esc(prop.line)} ${esc(prop.market)}</b><small>${esc(oddsTxt)}</small></div>
+        <div class="pc-pk r"><small>${act != null ? 'Final' : 'Our projection'}</small><b>${act != null ? esc(act) : fmtStat(k, projIf(prop) != null ? projIf(prop) : proj)}</b><small>${act != null ? 'projected ' + fmtStat(k, projIf(prop) != null ? projIf(prop) : proj) : 'if he plays'}</small></div>
+        <div class="pc-ml">${mlLine(projIf(prop) != null ? projIf(prop) : proj, prop.line)}</div>
+      </div>
+    </section>`;
+  } else if (prop) {
     const ch = propChance(prop), be = ch != null && prop.edge != null ? ch - prop.edge : null;
     const res = prop.grade === 'W' || prop.grade === 'L' ? prop : null, trk = TR().props;
     const oddsTxt = [prop.overOdds !== '' && prop.overOdds != null ? 'O ' + prop.overOdds : '', prop.underOdds !== '' && prop.underOdds != null ? 'U ' + prop.underOdds : ''].filter(Boolean).join(' · ');
@@ -1901,7 +2114,10 @@ function drawStat() {
 
   // all his props: tap a row to switch the card to that stat
   const cp = document.getElementById('cprops');
-  cp.innerHTML = props.length ? `<section class="pc-sec"><h4 class="pc-h">His props tonight <small>tap one to switch</small></h4><div class="pc-props">${props.map(x => {
+  cp.innerHTML = props.length && DASH ? `<section class="pc-sec"><h4 class="pc-h">His lines tonight <small>tap one to switch</small></h4><div class="pc-props">${props.map(x => {
+    const pj = projIf(x) != null ? projIf(x) : ifPlays(p, mk(x));
+    return `<button type="button" class="pc-pr dash" data-stat="${mk(x)}" aria-pressed="${mk(x) === k}"><span class="pc-prn"><b>${esc(x.market)}</b><small>line ${esc(x.line)}</small></span><span class="pc-prc"><b>${pj == null ? '—' : f1(pj)}</b><small>proj</small></span><span class="pc-prc"><b>${x.actual !== undefined && x.actual !== '' && x.actual != null ? esc(x.actual) : '—'}</b><small>final</small></span></button>`;
+  }).join('')}</div></section>` : props.length ? `<section class="pc-sec"><h4 class="pc-h">His props tonight <small>tap one to switch</small></h4><div class="pc-props">${props.map(x => {
     const ch = propChance(x);
     return `<button type="button" class="pc-pr${x.flagged ? ' fl' : ''}" data-stat="${mk(x)}" aria-pressed="${mk(x) === k}"><span class="pc-prn"><b>${esc(x.side)} ${esc(x.line)} ${esc(x.market)}</b><small>${esc(x.side === 'Over' ? x.overOdds : x.underOdds)}${x.guard ? ' · check' : ''}</small></span>
       <span class="pc-bar"><i style="width:${(ch || 0) * 100}%"></i></span><span class="pc-prc"><b>${pct(ch)}</b><small>chance</small></span><span class="lp ${x.edge != null && x.edge > 0 ? 'e' : 'n'}">${x.edge == null ? '—' : sgn(x.edge * 100, 1) + '%'}</span><span class="pc-prr">${badge(x.grade === 'W' || x.grade === 'L' ? x : null)}</span></button>`;
@@ -1953,7 +2169,7 @@ function vsPosHtml(p, k) {
   if (hits != null) tk += `. <b>${hits} of ${n}</b> topped ${benchLab}`;
   tk += owns.length ? `${hits != null ? ', and' : '.'} <b>${ownOver} of ${owns.length}</b> went over their own line.` : '.';
   if (n < 3) tk += ` Only ${n} so far, so read it lightly.`;
-  else if (prop && tone !== 'e') tk += tone === 'g' ? ` That leans the same way as the model's ${esc(prop.side.toLowerCase())}.` : ` That cuts against the model's ${esc(prop.side.toLowerCase())}.`;
+  else if (!DASH && prop && tone !== 'e') tk += tone === 'g' ? ` That leans the same way as the model's ${esc(prop.side.toLowerCase())}.` : ` That cuts against the model's ${esc(prop.side.toLowerCase())}.`;
 
   const shown = VS_ALL ? rows : rows.slice(0, VS_SHOW);
   const md = d => String(d || '').slice(5).replace('-', '/').replace(/^0/, '');
@@ -2091,6 +2307,7 @@ function afterDraw() {
 }
 /* masthead: the season record up top, and a ticker of tonight's games and last night's flagged results */
 function drawMast() {
+  if (DASH) return drawMastD();
   const S = recSummary('season'), mr = $('#mastrec'), tk = $('#ticker');
   if (mr) mr.innerHTML = S && S.n ? `<div><b>${S.w}–${S.l}</b><small>flagged game picks</small></div><div><b class="${S.u >= 0 ? 'g' : 'r'}">${sgn(S.u, 1)}u</b><small>season units</small></div>${S.clPct != null ? `<div><b>${pct(S.clPct)}</b><small>beat the close</small></div>` : ''}` : '';
   if (!tk) return;
