@@ -533,11 +533,43 @@ function overviewD(g) {
   const read = readBlock(g, a, h, pa, ph, vm, []);
   return `<div class="ov">
     ${read}
+    ${sitsBlock(g)}
     <h3 class="ov-h">Projections next to the line</h3>
     <p class="sub">NBA ALGO builds each score from team ratings; PLAYER ALGO builds it from the players expected to play. The betting line is here for context.</p>
     ${projTableGame(g)}
     ${watchList(g)}
   </div>`;
+}
+// 11-12a: "If he sits": each questionable / doubtful / day-to-day player with 20+ usual minutes, run playing and sitting
+function sitsBlock(g) {
+  const list = (B.sits || {})[g.id] || [];
+  if (!list.length) return '';
+  const word = s => { const u = String(s || '').toUpperCase(); return u === 'DAY-TO-DAY' ? 'Day-to-day' : u.charAt(0) + u.slice(1).toLowerCase(); };
+  const card = x => {
+    const opp = x.team === g.away ? g.home : g.away, away = x.team === g.away;
+    const score = pts => away ? `${esc(x.team)} ${f1(pts)} · ${esc(opp)} ${f1(x.opp)}` : `${esc(opp)} ${f1(x.opp)} · ${esc(x.team)} ${f1(pts)}`;
+    const d = Math.round(x.win[1] * 100) - Math.round(x.win[0] * 100);
+    const half = (lab, w, pts, delta) => `<div class="ws-h"><small>${lab}</small><b><i>${esc(x.team)}</i>${pct(w)}${delta ? `<em class="${d < 0 ? 'neg' : 'pos'}">${d > 0 ? '+' : '−'}${Math.abs(d)}</em>` : ''}</b>
+      <div class="ws-bar"><i style="width:${Math.max(0, Math.min(100, w * 100)).toFixed(1)}%;background:${esc(tcolor(x.team))}"></i></div><span>${score(pts)}</span></div>`;
+    return `<div class="ws">
+      <div class="ws-t"><span><b>${esc(x.name)}</b> · ${esc(x.team)} · ${esc(word(x.status))}</span>${x.usual != null ? `<small>usually ${Math.round(x.usual)} min</small>` : ''}</div>
+      <div class="ws-two">${half('He plays', x.win[0], x.pts[0], false)}${half('He sits', x.win[1], x.pts[1], d !== 0)}</div>
+      ${x.shift ? `<div class="ws-g">His minutes go to: ${x.shift.split('; ').map(t => `<b>${esc(t)}</b>`).join(' · ')}</div>` : ''}
+    </div>`;
+  };
+  return `<h3 class="ov-h">${list.length > 1 ? 'If they sit' : 'If he sits'}</h3>${list.map(card).join('')}
+    <p class="ws-k">Win chances from NBA ALGO, pregame. Shown for players who usually play 20+ minutes and are questionable, doubtful or day-to-day.</p>`;
+}
+// 11-12a: ESPN notes that disagree with the status the model is using (NOTE CHECK tab). Shown, never applied.
+function noteRows(code) {
+  const said = { PLAYS: 'he plays', SITS: 'he sits', 'LEANS SITS': 'he leans toward sitting', UNSURE: 'it’s unclear' };
+  const word = s => { const u = String(s || '').toUpperCase(); return !u || u === 'NOT LISTED' ? 'not listed' : u === 'DAY-TO-DAY' ? 'day-to-day' : u.toLowerCase(); };
+  return (B.noteCheck || []).filter(n => n.team === code).map(n => {
+    const note = n.note.length > 150 ? n.note.slice(0, 147) + '…' : n.note;
+    return n.check === 'CONFLICT'
+      ? `<div class="rd-nc"><b>${esc(n.name || 'Player')}</b>: listed ${esc(word(n.status))}, but ESPN's note says ${esc(said[n.says] || n.says.toLowerCase())}. “${esc(note)}” Projections use the listed status until it changes.</div>`
+      : `<div class="rd-nc soft"><b>${esc(n.name || 'Player')}</b> (${esc(word(n.status))}): ESPN's note says ${esc(said[n.says] || n.says.toLowerCase())}. “${esc(note)}”</div>`;
+  }).join('');
 }
 // Props screen and a game's Props tab: projection, line and minutes, sorted by team or player
 function projRow(p) {
@@ -1191,7 +1223,7 @@ function readBlock(g, a, h, pa, ph, vm, live) {
     return `<div class="rd-inj"><div class="rd-ih" style="background:${esc(tcolor(code))}"><span class="rd-il">${bgLogo(code)}</span>${esc(code)}<small>${esc(cnt)}</small></div>
       ${out.length ? `<div class="rd-ir"><span class="o">OUT</span>${esc(out.join(', '))}</div>` : ''}
       ${iffy.length ? `<div class="rd-ir"><span class="q">${iffy.some(p => /Doubtful/.test(p.status)) && !iffy.some(p => /Questionable/.test(p.status)) ? 'D' : 'Q'}</span>${iffy.map(p => esc(p.name) + (/Doubtful/.test(p.status) ? ' (doubtful)' : '')).join(', ')}</div>` : ''}
-      ${!out.length && !iffy.length ? '<div class="rd-ir none">No one out or questionable</div>' : ''}</div>`;
+      ${!out.length && !iffy.length ? '<div class="rd-ir none">No one out or questionable</div>' : ''}${noteRows(code)}</div>`;
   }).join('');
   // projected score: team-colour headers, each row's leader dark, margin under the source, the total in its own column
   const vA = a.tt != null ? a.tt : (vm != null && ou != null ? (ou - vm) / 2 : null), vH = h.tt != null ? h.tt : (vA != null && ou != null ? ou - vA : null);
